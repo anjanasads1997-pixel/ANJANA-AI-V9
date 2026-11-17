@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <meta name="description" content="ANJANA AI Sinhala and English Assistant">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>ANJANA AI V9.0</title>
+  <style>
+    body {
+      margin: 0;
+      background: #101827;
+      color: #eef2ff;
+      font-family: Arial, sans-serif;
+    }
+    main {
+      max-width: 850px;
+      margin: auto;
+      padding: 24px;
+    }
+    section {
+      background: #1d293b;
+      padding: 24px;
+      border-radius: 16px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      box-sizing: border-box;
+    }
+    button, select {
+      padding: 12px;
+      border-radius: 8px;
+    }
+    button {
+      background: #75c46b;
+      border: 0;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section>
+      <h1>ANJANA AI V9.0</h1>
+      <p>Sinhala | English | Local AI</p>
+
+      <select id="language">
+        <option value="si">සිංහල</option>
+        <option value="en">English</option>
+      </select>
+
+      <div id="messages">
+        ආයුබෝවන්! ANJANA AI වෙත සාදරයෙන් පිළිගනිමු.
+      </div>
+
+      <form id="chatForm">
+        <textarea id="prompt"
+          placeholder="ඔබගේ ප්‍රශ්නය ලියන්න..."
+          required></textarea>
+        <button type="submit">යවන්න / Send</button>
+      </form>
+
+      <p id="status">AI සේවාව සූදානම්දැයි පරීක්ෂා කරන්න.</p>
+    </section>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>
