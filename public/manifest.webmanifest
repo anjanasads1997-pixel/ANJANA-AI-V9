@@ -1,0 +1,12 @@
+
+{
+  "name": "ANJANA AI V9.0",
+  "short_name": "ANJANA AI",
+  "description": "Sinhala and English AI Assistant",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101827",
+  "theme_color": "#101827",
+  "orientation": "portrait"
+}
