@@ -5,6 +5,7 @@
   "private": true,
   "description": "ANJANA AI Sinhala and English Hybrid AI Platform",
   "main": "src/server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
