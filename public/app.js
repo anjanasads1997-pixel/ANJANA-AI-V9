@@ -17,13 +17,20 @@
 
   const setText = (id, value) => { const el = $(id); if (el) el.textContent = value; };
   const show = (el, yes) => { if (el) el.classList.toggle("hidden", !yes); };
-  const authHeaders = () => state.token ? { Authorization: `Bearer ${state.token}` } : {};
-
   async function request(path, options = {}) {
-    const headers = { ...(options.body ? { "Content-Type": "application/json" } : {}), ...authHeaders(), ...(options.headers || {}) };
-    const response = await fetch(path, { ...options, headers });
+    const headers = {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers || {})
+    };
+    const response = await fetch(path, {
+      ...options,
+      headers,
+      credentials: "same-origin"
+    });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.message || data.error || `Request failed (${response.status})`);
+    if (!response.ok) {
+      throw new Error(data.message || data.error || `Request failed (${response.status})`);
+    }
     return data;
   }
 
@@ -43,9 +50,11 @@
   async function healthCheck() {
     try {
       const h = await request("/api/health");
-      const aiReady = Boolean(h.ai_ready ?? h.ready ?? h.provider ?? h.ai_provider);
-      setText("providerState", h.provider || h.ai_provider || (aiReady ? "Configured" : "Backend online"));
-      setText("liveState", h.liveavatar_configured ? "Configured" : "Backend configuration required");
+      let aiInfo = {};
+      try { aiInfo = await request("/api/ai/status"); } catch {}
+      const aiReady = Boolean(aiInfo.openaiConfigured || aiInfo.ollama?.available || aiInfo.onlineReady);
+      setText("providerState", aiInfo.provider || (aiReady ? "Configured" : "Backend online; AI provider check required"));
+      setText("liveState", h.features?.liveAvatar ? "Configured" : "Backend configuration required");
       setText("ttsState", ("speechSynthesis" in window) ? "Browser voice available" : "Voice unavailable");
       setText("aiStatus", aiReady ? "AI service online" : "Backend online");
       $("aiDot")?.classList.toggle("ok", aiReady);
@@ -63,27 +72,36 @@
   async function authenticate(kind) {
     const username = $("username")?.value.trim();
     const password = $("password")?.value || "";
-    if (!username || !password) return notice("authNotice", "Username සහ password ඇතුළත් කරන්න.", true);
+    if (!username || !password) {
+      return notice("authNotice", "Username සහ password ඇතුළත් කරන්න.", true);
+    }
     if (!/^[A-Za-z0-9_]{3,30}$/.test(username)) {
       return notice("authNotice", "Username අකුරු, ඉලක්කම් හෝ underscore 3–30 අතර විය යුතුයි.", true);
     }
     if (password.length < 10 || password.length > 128) {
       return notice("authNotice", "Password අක්ෂර 10–128 අතර විය යුතුයි.", true);
     }
+
     const btn = $(kind === "login" ? "loginBtn" : "registerBtn");
     if (btn) btn.disabled = true;
     notice("authNotice", "කරුණාකර රැඳී සිටින්න…");
+
     try {
       const data = await request(`/api/auth/${kind}`, {
         method: "POST",
         body: JSON.stringify({ username, password })
       });
-      const token = data.token || data.access_token || data.session?.token;
-      if (!token) throw new Error("Backend response එකේ login token එක නොමැත.");
-      state.token = token;
-      state.user = data.user?.username || data.user?.name || username;
-      sessionStorage.setItem("anjana_token", token);
-      sessionStorage.setItem("anjana_user", state.user);
+
+      if (kind === "register") {
+        notice("authNotice", "ගිණුම සාර්ථකව නිර්මාණය කළා. දැන් Login වන්න.");
+        $("password").value = "";
+        return;
+      }
+
+      // Backend sets an HttpOnly anjana_session cookie; it intentionally returns no JWT.
+      const current = await request("/api/auth/me");
+      state.user = current.user?.username || data.user?.username || username;
+      state.token = "cookie-session";
       setAuthenticated(true);
       notice("authNotice", "");
       await healthCheck();
@@ -95,10 +113,16 @@
   }
 
   async function logout() {
-    // Attempt to close the remote LiveAvatar session before clearing the auth token.
-    await stopAvatar(true);
+    try {
+      await stopAvatar(false);
+      await request("/api/auth/logout", { method: "POST" });
+    } catch (e) {
+      // Clear the local UI even if the network is temporarily unavailable.
+      console.warn("Logout request could not be confirmed:", e.message);
+    }
     state.token = "";
     state.user = "";
+    state.sessionToken = null;
     sessionStorage.removeItem("anjana_token");
     sessionStorage.removeItem("anjana_user");
     setAuthenticated(false);
@@ -188,100 +212,45 @@
 
   async function startAvatar() {
     const start = $("startAvatarBtn"), stop = $("stopAvatarBtn");
-    if (!state.token) return avatarStatus("Login කර Live Avatar ආරම්භ කරන්න.");
-    if (state.room || state.sessionToken) return avatarStatus("LiveAvatar session එක දැනටමත් ක්‍රියාත්මකයි.");
+    if (!state.token) return avatarStatus("පළමුව Login වන්න.");
+    if (state.sessionToken) return avatarStatus("LiveAvatar session එක දැනටමත් ආරම්භ කර ඇත.");
     if (start) start.disabled = true;
-    avatarStatus("LiveAvatar session එක සම්බන්ධ කරමින්…");
+    avatarStatus("LiveAvatar session token එක ලබාගනිමින්…");
+
     try {
-      const data = await request("/api/liveavatar/session/start", {
+      const data = await request("/api/avatar/session", {
         method: "POST",
         body: JSON.stringify({})
       });
-      state.sessionToken = data.session_token || data.sessionToken;
-      const livekitUrl = data.livekit_url || data.livekitUrl;
-      const clientToken = data.livekit_client_token || data.livekit_token || data.token;
-      if (!state.sessionToken || !livekitUrl || !clientToken) {
-        throw new Error("Backend response එකේ LiveKit session තොරතුරු සම්පූර්ණ නැත.");
+      if (!data.session_token || !data.session_id) {
+        throw new Error("Backend වෙතින් LiveAvatar session තොරතුරු සම්පූර්ණ නැත.");
       }
-      const LK = await loadLiveKit();
-      const room = new LK.Room({ adaptiveStream: true, dynacast: true });
-      state.room = room;
-      room.on(LK.RoomEvent.TrackSubscribed, (track) => {
-        const element = track.attach();
-        if (track.kind === LK.Track.Kind.Video || track.kind === "video") {
-          element.autoplay = true; element.playsInline = true;
-          element.style.cssText = "width:100%;height:100%;object-fit:cover";
-          const placeholder = $("avatarPlaceholder");
-          const video = $("avatarVideo");
-          if (video) {
-            video.srcObject = element.srcObject;
-            video.classList.remove("hidden");
-            video.play().catch(() => {});
-          } else if (placeholder) {
-            placeholder.replaceChildren(element);
-          }
-        } else {
-          element.autoplay = true;
-          document.body.appendChild(element);
-          element.play?.().catch(() => {});
-        }
-      });
-      room.on(LK.RoomEvent.Disconnected, () => {
-        if (state.room === room) {
-          state.room = null;
-          if (start) start.disabled = false;
-          if (stop) stop.disabled = true;
-          avatarStatus("LiveAvatar connection විසන්ධි විය.");
-        }
-      });
-      await room.connect(livekitUrl, clientToken);
-      // Microphone is activated only after the user explicitly presses Start.
-      await room.localParticipant.setMicrophoneEnabled(true);
+      state.sessionToken = data.session_token;
       if (stop) stop.disabled = false;
-      avatarStatus("සජීවී Avatar සම්බන්ධයි. කතා කිරීම ආරම්භ කරන්න.", true);
+
+      // Current backend creates a LITE session token only. It does not yet
+      // return LiveKit URL/client token or implement the remote stop endpoint.
+      avatarStatus("LiveAvatar session token එක ලැබුණා. වීඩියෝ stream bridge එක Backend එකට තවම එකතු කර නැහැ.");
+      setText("qualityLabel", "Session token ready");
     } catch (e) {
-      try { await state.room?.disconnect(); } catch {}
-      state.room = null;
-      if (state.sessionToken) {
-        try {
-          await request("/api/liveavatar/session/stop", {
-            method: "POST",
-            body: JSON.stringify({ session_token: state.sessionToken })
-          });
-        } catch {}
-      }
-      state.sessionToken = null;
       if (start) start.disabled = false;
       if (stop) stop.disabled = true;
       avatarStatus(`LiveAvatar ආරම්භ කළ නොහැක: ${e.message}`);
     }
   }
 
-  async function stopAvatar(sendRemote = true) {
+  async function stopAvatar() {
     const start = $("startAvatarBtn"), stop = $("stopAvatarBtn");
-    try {
-      if (state.room) {
-        try { await state.room.localParticipant.setMicrophoneEnabled(false); } catch {}
-        await state.room.disconnect();
-      }
-    } catch {}
-    state.room = null;
-    if (sendRemote && state.sessionToken) {
-      try {
-        await request("/api/liveavatar/session/stop", {
-          method: "POST",
-          body: JSON.stringify({ session_token: state.sessionToken })
-        });
-      } catch (e) {
-        avatarStatus("Local stream නවතා ඇත. Remote session stop තහවුරු කළ නොහැකි විය.");
-      }
-    }
     state.sessionToken = null;
     const video = $("avatarVideo");
-    if (video) { video.pause(); video.srcObject = null; video.classList.add("hidden"); }
+    if (video) {
+      video.pause();
+      video.srcObject = null;
+      video.classList.add("hidden");
+    }
     if (start) start.disabled = false;
     if (stop) stop.disabled = true;
-    avatarStatus("LiveAvatar session නවතා ඇත.");
+    avatarStatus("Local LiveAvatar session state එක නවතා ඇත.");
   }
 
   function startMic() {
@@ -319,24 +288,22 @@
       setText("voiceToggle", state.voiceEnabled ? "🔊 Voice: On" : "🔇 Voice: Off");
       if (!state.voiceEnabled && "speechSynthesis" in window) speechSynthesis.cancel();
     });
-    setAuthenticated(Boolean(state.token));
+    setAuthenticated(false);
     healthCheck();
-    if (state.token) {
-      request("/api/auth/me").then(data => {
-        state.user = data.user?.username || data.username || state.user;
-        setAuthenticated(true);
-      }).catch(() => logout());
-    }
+    request("/api/auth/me").then(data => {
+      state.user = data.user?.username || data.username || "";
+      state.token = "cookie-session";
+      setAuthenticated(true);
+    }).catch(() => {
+      state.token = "";
+      state.user = "";
+      setAuthenticated(false);
+    });
   });
 
   window.addEventListener("pagehide", () => {
     try { state.recognition?.stop(); } catch {}
-    try {
-      if (state.room) {
-        state.room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
-        state.room.disconnect();
-      }
-    } catch {}
+    try { state.room?.disconnect(); } catch {}
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   });
 })();
