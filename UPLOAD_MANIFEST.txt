@@ -1,0 +1,19 @@
+ANJANA AI V9.0.1 — UPDATE PACKAGE
+
+Upload/replace these exact paths in GitHub repository:
+- package.json
+- .env.example
+- src/app.js
+- public/index.html
+- public/app.js
+- public/sw.js
+
+Also included:
+- docs/UPLOAD_SI.md (Sinhala instructions; upload as docs/UPLOAD_SI.md)
+
+Do not delete other repository files.
+Do not upload API key values or a real .env file.
+Render Build Command remains: yarn install
+Render Start Command remains: yarn start
+
+The package.json postinstall builds public/app.bundle.js automatically.
