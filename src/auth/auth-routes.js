@@ -11,6 +11,7 @@ function createAuthRouter({
 }) {
   const router = express.Router();
 
+  // Secure session cookie settings
   const cookieOptions = {
     httpOnly: true,
     secure: isProduction,
@@ -19,6 +20,9 @@ function createAuthRouter({
     maxAge: 30 * 60 * 1000
   };
 
+  // ==============================
+  // USER REGISTRATION
+  // ==============================
   router.post('/register', async (req, res) => {
     try {
       const username = String(req.body?.username || '')
@@ -33,9 +37,11 @@ function createAuthRouter({
         });
       }
 
-      if (typeof password !== 'string' ||
-          password.length < 10 ||
-          password.length > 128) {
+      if (
+        typeof password !== 'string' ||
+        password.length < 10 ||
+        password.length > 128
+      ) {
         return res.status(400).json({
           error: 'Password must be 10-128 characters'
         });
@@ -58,10 +64,17 @@ function createAuthRouter({
 
       return res.status(201).json({
         message: 'Registration successful',
-        user
+        user: {
+          id: user.id,
+          username: user.username
+        }
       });
+
     } catch (error) {
-      console.error('Registration error:', error.message);
+      console.error(
+        'Registration error:',
+        error.message
+      );
 
       return res.status(500).json({
         error: 'Registration failed'
@@ -69,6 +82,9 @@ function createAuthRouter({
     }
   });
 
+  // ==============================
+  // USER LOGIN
+  // ==============================
   router.post('/login', async (req, res) => {
     try {
       const username = String(req.body?.username || '')
@@ -77,9 +93,11 @@ function createAuthRouter({
 
       const password = req.body?.password;
 
-      if (typeof password !== 'string' ||
-          !username ||
-          password.length > 128) {
+      if (
+        !/^[a-z0-9_]{3,30}$/.test(username) ||
+        typeof password !== 'string' ||
+        password.length > 128
+      ) {
         return res.status(400).json({
           error: 'Invalid login details'
         });
@@ -87,10 +105,13 @@ function createAuthRouter({
 
       const user = userStore.findByUsername(username);
 
-      if (!user || !await authManager.verifyPassword(
-        password,
-        user.passwordHash
-      )) {
+      if (
+        !user ||
+        !await authManager.verifyPassword(
+          password,
+          user.passwordHash
+        )
+      ) {
         return res.status(401).json({
           error: 'Invalid username or password'
         });
@@ -98,10 +119,17 @@ function createAuthRouter({
 
       const session = sessionManager.create(user.id);
 
-      res.cookie('anjana_session', session.token, {
-        ...cookieOptions,
-        maxAge: Math.max(0, session.expiresAt - Date.now())
-      });
+      res.cookie(
+        'anjana_session',
+        session.token,
+        {
+          ...cookieOptions,
+          maxAge: Math.max(
+            0,
+            session.expiresAt - Date.now()
+          )
+        }
+      );
 
       return res.json({
         message: 'Login successful',
@@ -110,8 +138,12 @@ function createAuthRouter({
           username: user.username
         }
       });
+
     } catch (error) {
-      console.error('Login error:', error.message);
+      console.error(
+        'Login error:',
+        error.message
+      );
 
       return res.status(500).json({
         error: 'Login failed'
@@ -119,49 +151,81 @@ function createAuthRouter({
     }
   });
 
+  // ==============================
+  // USER LOGOUT
+  // ==============================
   router.post('/logout', (req, res) => {
-    const token = req.cookies?.anjana_session;
+    try {
+      const token = req.cookies?.anjana_session;
 
-    if (token) {
-      sessionManager.revoke(token);
+      if (token) {
+        sessionManager.revoke(token);
+      }
+
+      res.clearCookie('anjana_session', {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'strict',
+        path: '/'
+      });
+
+      return res.json({
+        message: 'Logout successful'
+      });
+
+    } catch (error) {
+      console.error(
+        'Logout error:',
+        error.message
+      );
+
+      return res.status(500).json({
+        error: 'Logout failed'
+      });
     }
-
-    res.clearCookie('anjana_session', {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
-      path: '/'
-    });
-
-    return res.json({
-      message: 'Logout successful'
-    });
   });
 
+  // ==============================
+  // CURRENT USER INFORMATION
+  // ==============================
   router.get('/me', (req, res) => {
-    const token = req.cookies?.anjana_session;
-    const session = sessionManager.get(token);
+    try {
+      const token = req.cookies?.anjana_session;
 
-    if (!session) {
-      return res.status(401).json({
-        error: 'Not authenticated'
-      });
-    }
+      const session = sessionManager.get(token);
 
-    const user = userStore.findById(session.userId);
-
-    if (!user) {
-      return res.status(401).json({
-        error: 'User not found'
-      });
-    }
-
-    return res.json({
-      user: {
-        id: user.id,
-        username: user.username
+      if (!session) {
+        return res.status(401).json({
+          error: 'Not authenticated'
+        });
       }
-    });
+
+      const user = userStore.findById(session.userId);
+
+      if (!user) {
+        return res.status(401).json({
+          error: 'User not found'
+        });
+      }
+
+      return res.json({
+        authenticated: true,
+        user: {
+          id: user.id,
+          username: user.username
+        }
+      });
+
+    } catch (error) {
+      console.error(
+        'User session error:',
+        error.message
+      );
+
+      return res.status(500).json({
+        error: 'Session verification failed'
+      });
+    }
   });
 
   return router;
