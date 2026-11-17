@@ -32,3 +32,15 @@ Run `npm test`. The included tests cover module loading, frontend/backend endpoi
 - Camera capture currently previews locally; it does not send images to a vision model.
 - Azure Speech browser-key entry is retained from the supplied UI and should be replaced with a server-issued short-lived token before public production use.
 - Android APK packaging, camera vision, and full real-device validation remain separate tasks.
+
+
+## Render Environment — පවතින අගයන්
+
+මෙම සංස්කරණය Render හි දැනට භාවිත කරන variable names සමඟ ගැළපේ:
+
+- Primary cloud (Gemini-compatible): `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`
+- Backup OpenAI: `BACKUP_OPENAI_API_KEY`, `BACKUP_OPENAI_BASE_URL`, `BACKUP_OPENAI_MODEL`
+- LiveAvatar: `LIVEAVATAR_API_KEY`, `LIVEAVATAR_AVATAR_ID`, `LIVEAVATAR_MODE=LITE`, `LIVEAVATAR_SANDBOX=true`
+- TTS: `OPENAI_TTS_API_KEY` හෝ `BACKUP_OPENAI_API_KEY`
+
+රහස් අගයන් ZIP, GitHub හෝ Screenshot තුළ නොදමන්න. 400 LiveAvatar දෝෂයක් ලැබුණහොත් නව සංස්කරණයේ UI/Render Logs තුළ Provider ලබාදුන් දෝෂ පණිවිඩය පරීක්ෂා කරන්න.
