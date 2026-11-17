@@ -17,7 +17,9 @@ const OllamaClient = require('./core/ollama-client');
 function createApp() {
   const app = express();
   const isProduction = process.env.NODE_ENV === 'production';
-  const dataDir = path.resolve(process.env.DATA_DIR || './data');
+  const dataDir = path.resolve(
+    process.env.DATA_DIR || './data'
+  );
 
   const auth = new AuthManager();
 
@@ -57,6 +59,42 @@ function createApp() {
     legacyHeaders: false
   });
 
+  // Authentication middleware
+  function requireAuth(req, res, next) {
+    try {
+      const token = req.cookies?.anjana_session;
+      const session = sessions.get(token);
+
+      if (!session) {
+        return res.status(401).json({
+          error: 'Please log in first'
+        });
+      }
+
+      const user = users.findById(session.userId);
+
+      if (!user) {
+        return res.status(401).json({
+          error: 'User account not found'
+        });
+      }
+
+      req.user = {
+        id: user.id,
+        username: user.username
+      };
+
+      next();
+    } catch (error) {
+      console.error('Authentication error:', error.message);
+
+      return res.status(500).json({
+        error: 'Authentication service unavailable'
+      });
+    }
+  }
+
+  // Health check
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
@@ -66,38 +104,53 @@ function createApp() {
     });
   });
 
+  // Local AI status
   app.get('/api/ai/status', async (req, res) => {
-    res.json(await ai.status());
-  });
-
-  app.post('/api/chat', chatLimiter, async (req, res) => {
-    const message =
-      typeof req.body?.message === 'string'
-        ? req.body.message.trim()
-        : '';
-
-    if (!message) {
-      return res.status(400).json({
-        error: 'Please enter a message'
-      });
-    }
-
-    if (message.length > 8000) {
-      return res.status(413).json({
-        error: 'Message is too long'
-      });
-    }
-
     try {
-      const result = await ai.chat(message);
-      res.json(result);
-    } catch (error) {
+      res.json(await ai.status());
+    } catch {
       res.status(503).json({
-        error: error.message || 'Local AI unavailable'
+        error: 'AI service unavailable'
       });
     }
   });
 
+  // Protected AI chat
+  app.post(
+    '/api/chat',
+    requireAuth,
+    chatLimiter,
+    async (req, res) => {
+      try {
+        const message =
+          typeof req.body?.message === 'string'
+            ? req.body.message.trim()
+            : '';
+
+        if (!core.validateMessage(message)) {
+          return res.status(400).json({
+            error: 'Invalid message'
+          });
+        }
+
+        const request = core.createRequest(message);
+        const result = await ai.chat(request.message);
+
+        return res.json({
+          ...result,
+          language: request.language
+        });
+      } catch (error) {
+        console.error('AI chat error:', error.message);
+
+        return res.status(503).json({
+          error: 'Local AI service unavailable'
+        });
+      }
+    }
+  );
+
+  // Authentication routes
   app.use(
     '/api/auth',
     authLimiter,
@@ -109,14 +162,18 @@ function createApp() {
     })
   );
 
+  // Frontend
   app.use(express.static(
     path.join(__dirname, '..', 'public')
   ));
 
+  // Error handler
   app.use((err, req, res, next) => {
-    if (res.headersSent) return next(err);
+    if (res.headersSent) {
+      return next(err);
+    }
 
-    console.error(err.message);
+    console.error('Application error:', err.message);
 
     res.status(500).json({
       error: 'Internal server error'
