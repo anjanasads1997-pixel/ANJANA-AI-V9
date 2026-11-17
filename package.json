@@ -1,8 +1,8 @@
 {
-  "name": "anjana-ai-v9",
-  "version": "9.0.1",
+  "name": "anjana-ai-v10",
+  "version": "10.2.0",
   "private": true,
-  "description": "ANJANA AI V9.0 Sinhala and English Hybrid AI with LiveAvatar",
+  "description": "ANJANA AI V10.2 bilingual hybrid assistant with LiveAvatar LITE streaming integration",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {

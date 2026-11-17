@@ -17,3 +17,5 @@ Render Build Command remains: yarn install
 Render Start Command remains: yarn start
 
 The package.json postinstall builds public/app.bundle.js automatically.
+
+docs/V10.2-CHANGELOG-SI.md
