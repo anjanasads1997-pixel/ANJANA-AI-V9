@@ -1,21 +1,15 @@
-ANJANA AI V9.0.1 — UPDATE PACKAGE
+ANJANA AI V10.2.3 — CHANGED FILES ONLY
 
-Upload/replace these exact paths in GitHub repository:
+Upload/replace these exact paths in the existing GitHub repository:
 - package.json
 - .env.example
 - src/app.js
-- public/index.html
-- public/app.js
-- public/sw.js
-
-Also included:
-- docs/UPLOAD_SI.md (Sinhala instructions; upload as docs/UPLOAD_SI.md)
+- src/core/engine.js
+- tests/v10-integration.test.js
+- README.md
+- docs/V10.2.3-CHANGELOG-SI.md
 
 Do not delete other repository files.
-Do not upload API key values or a real .env file.
-Render Build Command remains: yarn install
-Render Start Command remains: yarn start
-
-The package.json postinstall builds public/app.bundle.js automatically.
-
-docs/V10.2-CHANGELOG-SI.md
+Do not upload a real .env file or any API key values.
+Keep existing LiveAvatar and frontend files unchanged.
+Render Environment migration instructions are in README.md and docs/V10.2.3-CHANGELOG-SI.md.

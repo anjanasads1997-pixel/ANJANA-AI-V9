@@ -1,46 +1,66 @@
-# ANJANA AI V10.2 — LiveAvatar Integrated Release
+# ANJANA AI V10.2.3 — OpenAI Primary Hybrid + LiveAvatar LITE
 
-Sinhala + English PWA interface, authenticated Express backend, hybrid AI routing, and LiveAvatar LITE session streaming.
+Sinhala + English PWA interface, authenticated Express backend, OpenAI-first hybrid routing, Gemini secondary fallback, local Ollama fallback, and LiveAvatar LITE streaming.
+
+## V10.2.3 AI provider order
+
+Default `AI_PROVIDER=hybrid` order:
+
+1. **OpenAI** — primary paid cloud engine (`OPENAI_API_KEY`, default endpoint `https://api.openai.com/v1`, default model `gpt-4.1-mini`).
+2. **Google Gemini** — secondary cloud engine (`GEMINI_API_KEY`, default model `gemini-2.5-flash`).
+3. **Ollama** — local/offline fallback (`OLLAMA_BASE_URL`, default model `qwen2.5:1.5b-instruct`).
+
+Optional forced modes: `AI_PROVIDER=openai`, `gemini`, or `ollama`. Provider credentials are read only by the server and are never sent to the browser.
+
+### Important Render migration
+
+The supplied V10.2.1 package used `OPENAI_API_KEY` + a Google OpenAI-compatible `OPENAI_BASE_URL` as its Gemini primary configuration. V10.2.3 changes the meaning of `OPENAI_API_KEY` to the actual OpenAI account key and uses `GEMINI_API_KEY` separately for Gemini.
+
+In Render Environment:
+- Set `OPENAI_API_KEY` to the paid OpenAI API key.
+- Set `OPENAI_BASE_URL` to `https://api.openai.com/v1` (or remove it to use this default).
+- Set `OPENAI_MODEL` to a model enabled for the account, default `gpt-4.1-mini`.
+- Set `GEMINI_API_KEY` to the separate Google AI Studio key and `GEMINI_MODEL` to `gemini-2.5-flash`.
+- Do not leave a Gemini key in `OPENAI_API_KEY`.
+- Do not put any real key in this ZIP, GitHub, screenshots, or chat.
+- `BACKUP_OPENAI_*` is retained as a compatibility alias for older deployments; new deployments should use `OPENAI_*`.
 
 ## LiveAvatar LITE setup
-The Render service uses the existing `LIVEAVATAR_API_KEY` and `LIVEAVATAR_AVATAR_ID` variables. The remembered avatar ID `245c5ef6-fea0-4095-9894-79ff8f3947be` is only a fallback if no ID is configured. Keep `LIVEAVATAR_MODE=LITE` and `LIVEAVATAR_SANDBOX=true` for the sandbox configuration shown in the supplied Render screenshot. The browser requests a short-lived session token from the authenticated backend; the API key is never sent to the browser. The official LiveAvatar Web SDK starts/stops the session and attaches the LiveKit video stream.
 
-For avatar speech, `/api/tts` uses `OPENAI_TTS_API_KEY`, or `BACKUP_OPENAI_API_KEY`, before `OPENAI_API_KEY`. This matters when `OPENAI_API_KEY` is configured as a Gemini-compatible key/base URL: that Gemini key is not an OpenAI speech key. Add a separate TTS key only if you want server-generated PCM speech; otherwise the browser speech fallback remains available.
+The backend uses `LIVEAVATAR_API_KEY` and `LIVEAVATAR_AVATAR_ID`. Keep `LIVEAVATAR_MODE=LITE` and `LIVEAVATAR_SANDBOX=true` for the sandbox configuration. The browser requests a short-lived session token from the authenticated backend; the LiveAvatar API key is never sent to the browser. The official `@heygen/liveavatar-web-sdk` starts/stops the session and attaches the LiveKit video stream.
 
-The LITE session uses ANJANA AI's own response engine and a 24 kHz mono PCM TTS output. The Render sandbox setting is controlled by `LIVEAVATAR_SANDBOX`; change it to `false` only when the account/avatar is ready for a non-sandbox session.
+For avatar speech, `/api/tts` uses `OPENAI_TTS_API_KEY`, or `BACKUP_OPENAI_API_KEY`, or the primary `OPENAI_API_KEY` only when the base URL is the official OpenAI API. A Gemini key is never used as an OpenAI speech credential. Browser speech fallback remains available.
 
 ## Local setup
+
 1. Install Node.js 20 or newer.
 2. Extract this folder and run `npm install`.
 3. Copy `.env.example` to `.env`.
-4. Set `GEMINI_API_KEY` for the primary online model. Optionally set `OPENAI_API_KEY` for backup.
-5. Install Ollama and pull the model named in `OLLAMA_MODEL` for the local fallback.
+4. Add the OpenAI key and, optionally, the separate Gemini key.
+5. Install Ollama and pull the model named in `OLLAMA_MODEL` for local fallback.
 6. Run `npm start` and open `http://localhost:3000`.
 7. Register a username and password (10–128 characters), then log in.
 
-## Hybrid order
-Default `AI_PROVIDER=hybrid`: Gemini → OpenAI → Ollama. Set `AI_PROVIDER=gemini`, `openai`, or `ollama` to force one provider. Provider keys belong only in the server environment, never in the browser.
-
 ## Deployment
-Deploy the complete folder as a Node web service (not a static-only GitHub Pages site), configure a persistent disk for `DATA_DIR`, set `NODE_ENV=production`, and add provider credentials as host environment variables. HTTPS is required for secure session cookies and browser microphone/camera APIs.
+
+Deploy the complete folder as a Node web service (not a static-only GitHub Pages site), configure a persistent disk for `DATA_DIR`, set `NODE_ENV=production`, and add provider credentials as Render environment variables. HTTPS is required for secure session cookies and browser microphone/camera APIs.
+
+Keep the existing service; do not create a second Render service. Check `/api/health` after deployment. Health confirms the backend is running, not that paid provider credentials have completed a real chat request.
 
 ## Verification
-Run `npm test`. The included tests cover module loading, frontend/backend endpoint alignment, session-auth UI wiring, and hybrid-provider routing. Live provider credentials, Render deployment, Android hardware, browser WebGPU, camera vision, and LiveAvatar audio/lip-sync still require separate end-to-end tests.
 
-## Known incomplete features
+Run:
+
+```bash
+npm install
+npm test
+npm start
+```
+
+Tests cover frontend/backend endpoint alignment, session-auth UI wiring, provider routing configuration, health version, and environment separation. Real OpenAI/Gemini credentials, Render deployment, Android hardware, browser WebGPU, camera vision, and LiveAvatar audio/lip-sync still require separate end-to-end tests.
+
+## Known incomplete features retained from V10.2.1
+
 - The Research/Learning panel needs a dedicated research service endpoint; it is not implemented by `/api/chat`.
 - Camera capture currently previews locally; it does not send images to a vision model.
-- Azure Speech browser-key entry is retained from the supplied UI and should be replaced with a server-issued short-lived token before public production use.
-- Android APK packaging, camera vision, and full real-device validation remain separate tasks.
-
-
-## Render Environment — පවතින අගයන්
-
-මෙම සංස්කරණය Render හි දැනට භාවිත කරන variable names සමඟ ගැළපේ:
-
-- Primary cloud (Gemini-compatible): `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`
-- Backup OpenAI: `BACKUP_OPENAI_API_KEY`, `BACKUP_OPENAI_BASE_URL`, `BACKUP_OPENAI_MODEL`
-- LiveAvatar: `LIVEAVATAR_API_KEY`, `LIVEAVATAR_AVATAR_ID`, `LIVEAVATAR_MODE=LITE`, `LIVEAVATAR_SANDBOX=true`
-- TTS: `OPENAI_TTS_API_KEY` හෝ `BACKUP_OPENAI_API_KEY`
-
-රහස් අගයන් ZIP, GitHub හෝ Screenshot තුළ නොදමන්න. 400 LiveAvatar දෝෂයක් ලැබුණහොත් නව සංස්කරණයේ UI/Render Logs තුළ Provider ලබාදුන් දෝෂ පණිවිඩය පරීක්ෂා කරන්න.
+- Android APK packaging and full real-device validation remain separate tasks.

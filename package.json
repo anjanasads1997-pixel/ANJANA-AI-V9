@@ -1,8 +1,8 @@
 {
   "name": "anjana-ai-v10",
-  "version": "10.2.1",
+  "version": "10.2.3",
   "private": true,
-  "description": "ANJANA AI V10.2.1 bilingual hybrid assistant with LiveAvatar LITE streaming integration",
+  "description": "ANJANA AI V10.2.3 bilingual hybrid assistant: OpenAI primary, Gemini secondary, Ollama offline, LiveAvatar LITE",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
