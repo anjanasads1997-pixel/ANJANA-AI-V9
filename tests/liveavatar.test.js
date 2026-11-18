@@ -6,11 +6,12 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('LiveAvatar LITE uses server-side credentials and remembered avatar fallback', () => {
+test('LiveAvatar LITE uses server-side credentials and requires an explicit account avatar ID', () => {
   const app = read('src/app.js');
   assert.match(app, /process\.env\.LIVEAVATAR_API_KEY/);
   assert.match(app, /process\.env\.LIVEAVATAR_AVATAR_ID/);
-  assert.match(app, /245c5ef6-fea0-4095-9894-79ff8f3947be/);
+  assert.match(app, /process\.env\.ANJANA_LIVEAVATAR_ID \|\| ''/);
+  assert.match(app, /LIVEAVATAR_AVATAR_ID සකසා නැත/);
   assert.match(app, /is_sandbox: isSandbox/);
   assert.match(app, /\/v1\/sessions\/token/);
 });
