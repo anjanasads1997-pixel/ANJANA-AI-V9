@@ -84,3 +84,21 @@ For Render, verify `OPENAI_API_KEY` contains the actual OpenAI API key, `OPENAI_
 - Hybrid mode no longer silently presents a canned local reply when the backend is down and no local model is loaded. It shows the actual backend error in chat.
 - LiveAvatar now requires an explicit account-owned `LIVEAVATAR_AVATAR_ID`; no sample/default avatar ID is silently substituted. Set `LIVEAVATAR_SANDBOX=false` in Render for a permitted live account.
 - LiveAvatar provider account permissions and avatar eligibility must be verified in the LiveAvatar account; code cannot grant them.
+
+
+## V10.2.6 reliability and diagnostics
+
+- OpenAI requests retry once for transient HTTP 408/429/500/502/503/504 responses.
+- Provider errors include a bounded, redacted HTTP status, provider code/message and request ID where supplied.
+- The official OpenAI base URL is normalized to `/v1` when the host is `api.openai.com` and no path is supplied.
+- Hybrid failures now report the OpenAI, Gemini and Ollama failure reasons instead of returning a generic local fallback message.
+- The UI distinguishes “API key configured” from a verified OpenAI connection. Use **Test OpenAI Connection** to verify the API request.
+- A persistent HTTP 503 cannot be repaired by application code alone; verify the OpenAI API key, model access, billing/quota, Render environment values and OpenAI service availability. Never put provider keys in GitHub or browser fields.
+
+Recommended Render variables:
+- `AI_PROVIDER=hybrid`
+- `OPENAI_BASE_URL=https://api.openai.com/v1`
+- `OPENAI_MODEL=gpt-4.1-mini`
+- `OPENAI_API_KEY` = your own valid OpenAI API key
+- Optional secondary provider: `GEMINI_API_KEY`
+- `LIVEAVATAR_SANDBOX=false` only when the account and selected avatar are eligible for live mode.

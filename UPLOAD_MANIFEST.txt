@@ -1,6 +1,6 @@
-ANJANA AI V10.2.5 — CHANGED FILES ONLY
+ANJANA AI V10.2.6 — CHANGED FILES ONLY
 
-Upload these files to the same paths in the existing repository; do not delete unrelated files.
+Upload these files to the matching paths in the existing GitHub repository:
 - package.json
 - .env.example
 - src/app.js
@@ -8,9 +8,21 @@ Upload these files to the same paths in the existing repository; do not delete u
 - public/index.html
 - public/app-v10.js
 - public/sw.js
-- tests/liveavatar.test.js
 - tests/v10-integration.test.js
 - README.md
-- docs/V10.2.5-CHANGELOG-SI.md
+- docs/V10.2.6-CHANGELOG-SI.md
+- UPLOAD_MANIFEST.txt
 
-Render Environment must be updated separately. Never commit API keys.
+Do not delete unrelated project files.
+Commit message:
+ANJANA AI V10.2.6 - OpenAI Retry and Hybrid Diagnostics
+
+After upload, set/check Render Environment:
+AI_PROVIDER=hybrid
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_API_KEY=<your own valid OpenAI API key>
+Optional secondary provider: GEMINI_API_KEY
+LIVEAVATAR_SANDBOX=false only if your account/avatar is approved for live mode.
+
+Do not commit API keys. A persistent provider HTTP 503 may still require checking OpenAI account access, billing/quota, model availability, and service status.
