@@ -1,11 +1,16 @@
-ANJANA AI V10.2.4 — CHANGED FILES ONLY
-Upload/replace these paths in the existing repository; do not delete other project files.
+ANJANA AI V10.2.5 — CHANGED FILES ONLY
+
+Upload these files to the same paths in the existing repository; do not delete unrelated files.
 - package.json
 - .env.example
 - src/app.js
-- public/app-v10.js
+- src/server.js
 - public/index.html
+- public/app-v10.js
 - public/sw.js
-- docs/V10.2.4-CHANGELOG-SI.md
-- UPLOAD_MANIFEST.txt
-Render Environment: OPENAI_API_KEY, OPENAI_BASE_URL=https://api.openai.com/v1, OPENAI_MODEL=gpt-4.1-mini, AI_PROVIDER=hybrid. For a LiveAvatar account/avatar approved for Live mode, set LIVEAVATAR_SANDBOX=false. Never commit API keys.
+- tests/liveavatar.test.js
+- tests/v10-integration.test.js
+- README.md
+- docs/V10.2.5-CHANGELOG-SI.md
+
+Render Environment must be updated separately. Never commit API keys.

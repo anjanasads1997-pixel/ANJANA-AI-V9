@@ -27,7 +27,7 @@ In Render Environment:
 
 ## LiveAvatar LITE setup
 
-The backend uses `LIVEAVATAR_API_KEY` and `LIVEAVATAR_AVATAR_ID`. Keep `LIVEAVATAR_MODE=LITE` and `LIVEAVATAR_SANDBOX=true` for the sandbox configuration. The browser requests a short-lived session token from the authenticated backend; the LiveAvatar API key is never sent to the browser. The official `@heygen/liveavatar-web-sdk` starts/stops the session and attaches the LiveKit video stream.
+The backend uses `LIVEAVATAR_API_KEY` and `LIVEAVATAR_AVATAR_ID`. Keep `LIVEAVATAR_MODE=LITE`. For production/live avatars set `LIVEAVATAR_SANDBOX=false` only when the account and avatar are enabled for Live mode; use `true` only for an avatar that explicitly supports sandbox mode. The browser requests a short-lived session token from the authenticated backend; the LiveAvatar API key is never sent to the browser. The official `@heygen/liveavatar-web-sdk` starts/stops the session and attaches the LiveKit video stream.
 
 For avatar speech, `/api/tts` uses `OPENAI_TTS_API_KEY`, or `BACKUP_OPENAI_API_KEY`, or the primary `OPENAI_API_KEY` only when the base URL is the official OpenAI API. A Gemini key is never used as an OpenAI speech credential. Browser speech fallback remains available.
 
@@ -75,3 +75,12 @@ Tests cover frontend/backend endpoint alignment, session-auth UI wiring, provide
 - LiveAvatar defaults to non-sandbox mode. Set `LIVEAVATAR_SANDBOX=false` in Render only when the LiveAvatar account/avatar is enabled for Live mode.
 
 For Render, verify `OPENAI_API_KEY` contains the actual OpenAI API key, `OPENAI_BASE_URL=https://api.openai.com/v1`, `OPENAI_MODEL=gpt-4.1-mini`, and `AI_PROVIDER=hybrid`. Do not commit API keys. A code deployment cannot activate API billing, grant model access, or grant LiveAvatar account permissions.
+
+
+## V10.2.5 diagnostics
+
+- Adds an authenticated direct OpenAI connectivity test at `/api/ai/test`; it reports provider/model and bounded diagnostics without exposing API keys.
+- Adds a visible `/api/ai/status` summary in the UI. Configured-key status does not prove key validity; use Test OpenAI Connection.
+- Hybrid mode no longer silently presents a canned local reply when the backend is down and no local model is loaded. It shows the actual backend error in chat.
+- LiveAvatar now requires an explicit account-owned `LIVEAVATAR_AVATAR_ID`; no sample/default avatar ID is silently substituted. Set `LIVEAVATAR_SANDBOX=false` in Render for a permitted live account.
+- LiveAvatar provider account permissions and avatar eligibility must be verified in the LiveAvatar account; code cannot grant them.
