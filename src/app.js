@@ -95,34 +95,99 @@ function createApp() {
 
   function normalizeBaseUrl(value, fallback = 'https://api.openai.com/v1') {
     const raw = String(value || fallback).trim().replace(/\/+$/, '');
-    return raw;
+    let parsed;
+    try { parsed = new URL(raw); } catch { throw new Error('OPENAI_BASE_URL is not a valid URL'); }
+    if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('OPENAI_BASE_URL must use HTTPS');
+    if (parsed.protocol === 'http:' && !['localhost', '127.0.0.1'].includes(parsed.hostname)) {
+      throw new Error('OPENAI_BASE_URL must use HTTPS');
+    }
+    if (parsed.search || parsed.hash) throw new Error('OPENAI_BASE_URL must not contain query parameters or fragments');
+    let pathname = parsed.pathname.replace(/\/+$/, '');
+    if (parsed.hostname === 'api.openai.com' && !pathname) pathname = '/v1';
+    pathname = pathname.replace(/\/chat\/completions$/i, '');
+    return `${parsed.origin}${pathname}`;
+  }
+
+  function redactProviderText(value) {
+    return String(value || '')
+      .replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,})/g, '[redacted]')
+      .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
+      .replace(/[\r\n\t]+/g, ' ')
+      .slice(0, 320);
   }
 
   async function openAiCompatibleChat(message, language, config) {
     const apiKey = String(config.apiKey || '').trim();
     if (!apiKey) throw new Error(`${config.label || 'OpenAI-compatible'} API key is not configured`);
     const baseUrl = normalizeBaseUrl(config.baseUrl);
-    const model = String(config.model || 'gpt-4o-mini').trim();
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(30000),
-      body: JSON.stringify({
-        model,
-        temperature: 0.7,
-        messages: [
-          { role: 'system', content: language === 'si'
-            ? 'ඔබ ANJANA AI ය. පැහැදිලි, ප්‍රයෝජනවත් සිංහලෙන් පිළිතුරු දෙන්න. අවශ්‍ය විට ඉංග්‍රීසි තාක්ෂණික පද භාවිත කරන්න.'
-            : 'You are ANJANA AI. Give clear, helpful answers in English.' },
-          { role: 'user', content: message }
-        ]
-      })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error?.message || data.message || `${config.label || 'AI provider'} request failed (${response.status})`);
-    const reply = data.choices?.[0]?.message?.content?.trim();
-    if (!reply) throw new Error('The AI provider returned an empty response');
-    return { reply, model: data.model || model, provider: config.provider || 'openai-compatible' };
+    const model = String(config.model || 'gpt-4.1-mini').trim();
+    if (!model) throw new Error('OPENAI_MODEL is empty');
+
+    const maxAttempts = 2;
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      let response;
+      try {
+        response = await fetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS || 45000)),
+          body: JSON.stringify({
+            model,
+            temperature: 0.7,
+            messages: [
+              { role: 'system', content: language === 'si'
+                ? 'ඔබ ANJANA AI ය. පැහැදිලි, ප්‍රයෝජනවත් සිංහලෙන් පිළිතුරු දෙන්න. අවශ්‍ය විට ඉංග්‍රීසි තාක්ෂණික පද භාවිත කරන්න.'
+                : 'You are ANJANA AI. Give clear, helpful answers in English.' },
+              { role: 'user', content: message }
+            ]
+          })
+        });
+      } catch (error) {
+        const reason = error.name === 'TimeoutError' || error.name === 'AbortError'
+          ? 'request timed out' : redactProviderText(error.message);
+        lastError = new Error(`${config.label || 'OpenAI'} network error: ${reason}`);
+        if (attempt < maxAttempts) { await new Promise(resolve => setTimeout(resolve, 900)); continue; }
+        throw lastError;
+      }
+
+      const raw = await response.text();
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; }
+      catch { data = { message: raw.slice(0, 320) }; }
+
+      if (response.ok) {
+        const reply = data.choices?.[0]?.message?.content?.trim();
+        if (!reply) throw new Error(`${config.label || 'OpenAI'} returned an empty response (HTTP ${response.status})`);
+        return { reply, model: data.model || model, provider: config.provider || 'openai-compatible' };
+      }
+
+      const providerError = data.error || {};
+      const detail = redactProviderText(
+        providerError.message || data.message || data.detail || raw || response.statusText
+      );
+      const code = redactProviderText(providerError.code || providerError.type || data.code || '');
+      const requestId = redactProviderText(response.headers.get('x-request-id') || response.headers.get('request-id') || '');
+      const status = response.status;
+      const retryable = [408, 429, 500, 502, 503, 504].includes(status);
+      lastError = new Error(
+        `${config.label || 'OpenAI'} HTTP ${status}${code ? ` (${code})` : ''}: ${detail || response.statusText || 'Provider returned an error'}${requestId ? ` [request ${requestId}]` : ''}`
+      );
+      lastError.status = status;
+      lastError.retryable = retryable;
+      if (retryable && attempt < maxAttempts) {
+        const retryAfter = Number(response.headers.get('retry-after') || 0);
+        const delay = Math.min(2500, Math.max(900, retryAfter > 0 ? retryAfter * 1000 : 900));
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw lastError;
+    }
+    throw lastError || new Error('OpenAI request failed');
   }
 
   async function openAiChat(message, language) {
@@ -162,32 +227,45 @@ function createApp() {
   }
 
   async function hybridChat(message, language) {
-    const provider = String(process.env.AI_PROVIDER || 'hybrid').toLowerCase();
+    const provider = String(process.env.AI_PROVIDER || 'hybrid').trim().toLowerCase();
     if (provider === 'gemini') return geminiChat(message, language);
     if (provider === 'openai') return openAiChat(message, language);
     if (provider === 'ollama' || provider === 'local') return { ...(await ai.chat(message)), provider: 'ollama' };
 
-    // V10.2.3 default order: OpenAI (primary) -> Gemini (secondary) -> Ollama (offline).
+    const failures = [];
     try {
       return await openAiChat(message, language);
     } catch (error) {
-      console.warn('OpenAI unavailable; trying Gemini:', error.message);
+      failures.push(`OpenAI: ${redactProviderText(error.message)}`);
+      console.warn('OpenAI unavailable; trying Gemini:', redactProviderText(error.message));
     }
 
     if (process.env.GEMINI_API_KEY) {
       try {
         return await geminiChat(message, language);
       } catch (error) {
-        console.warn('Gemini unavailable; trying local Ollama:', error.message);
+        failures.push(`Gemini: ${redactProviderText(error.message)}`);
+        console.warn('Gemini unavailable; trying local Ollama:', redactProviderText(error.message));
       }
+    } else {
+      failures.push('Gemini: GEMINI_API_KEY is not configured');
     }
 
-    return { ...(await ai.chat(message)), provider: 'ollama' };
+    try {
+      return { ...(await ai.chat(message)), provider: 'ollama' };
+    } catch (error) {
+      failures.push(`Ollama: ${redactProviderText(error.message)}`);
+    }
+
+    const diagnostic = failures.join(' | ').slice(0, 850);
+    const unavailable = new Error(`සියලු AI Engine අසාර්ථකයි. ${diagnostic}`);
+    unavailable.providerFailures = failures;
+    throw unavailable;
   }
 
   app.get('/api/health', (req, res) => {
     res.json({
-      status: 'ok', service: 'ANJANA AI', version: '10.2.5',
+      status: 'ok', service: 'ANJANA AI', version: '10.2.6',
       core: core.getStatus(),
       features: {
         authentication: true, hybridAi: true,
@@ -203,7 +281,7 @@ function createApp() {
     try {
       const ollama = await ai.status();
       res.json({
-        version: '10.2.5',
+        version: '10.2.6',
         provider: process.env.AI_PROVIDER || 'hybrid',
         openaiModel: process.env.OPENAI_MODEL || process.env.BACKUP_OPENAI_MODEL || 'gpt-4.1-mini',
         geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
@@ -221,9 +299,15 @@ function createApp() {
       const result = await openAiChat('Reply with exactly: ANJANA AI OpenAI connection OK.', 'en');
       return res.json({ ok: true, provider: result.provider, model: result.model, reply: result.reply });
     } catch (error) {
-      const diagnostic = String(error.message || 'Unknown OpenAI error').replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,})/g, '[redacted]').slice(0, 220);
+      const diagnostic = redactProviderText(error.message || 'Unknown OpenAI error');
+      const status = Number(error.status) || 503;
       console.error('OpenAI connection test failed:', diagnostic);
-      return res.status(503).json({ ok: false, error: 'OpenAI connection failed', diagnostic, hint: 'Render Environment හි OPENAI_API_KEY, OPENAI_BASE_URL සහ OPENAI_MODEL පරීක්ෂා කරන්න.' });
+      let hint = 'Render Environment හි OPENAI_API_KEY, OPENAI_BASE_URL=https://api.openai.com/v1 සහ OPENAI_MODEL පරීක්ෂා කරන්න.';
+      if (status === 401 || status === 403) hint = 'OpenAI API key එක වැරදිද, අවලංගුද, හෝ project permissions ප්‍රමාණවත්ද පරීක්ෂා කරන්න.';
+      else if (status === 404) hint = 'OPENAI_MODEL නම සහ API endpoint එක පරීක්ෂා කරන්න. OPENAI_BASE_URL සාමාන්‍යයෙන් https://api.openai.com/v1 විය යුතුයි.';
+      else if (status === 429) hint = 'OpenAI billing, quota සහ rate limits පරීක්ෂා කරන්න.';
+      else if ([500, 502, 503, 504].includes(status)) hint = 'OpenAI සේවාවේ තාවකාලික server/availability ගැටලුවක් විය හැක. පද්ධතිය එක් වරක් නැවත උත්සාහ කරයි; පසුව නැවත පරීක්ෂා කරන්න.';
+      return res.status(503).json({ ok: false, error: 'OpenAI connection failed', providerStatus: status, diagnostic, hint });
     }
   });
 
@@ -306,7 +390,7 @@ function createApp() {
       console.error('AI chat error:', error.message);
       // Return a bounded diagnostic so the UI can distinguish invalid keys,
       // quota/model errors and an unavailable local fallback without exposing secrets.
-      const diagnostic = String(error.message || 'Unknown provider error').replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,})/g, '[redacted]').slice(0, 220);
+      const diagnostic = redactProviderText(error.message || 'Unknown provider error');
       return res.status(503).json({
         error: 'AI providers are unavailable.',
         diagnostic,
