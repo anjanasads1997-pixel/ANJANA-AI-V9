@@ -168,8 +168,8 @@ async function refreshAIStatus(){
   const gemini=data.geminiConfigured?'Gemini configured':'Gemini not configured';
   const local=data.ollama?.online?'Ollama available':'Ollama unavailable';
   if(details)details.textContent=`ANJANA AI v${data.version||'unknown'} • Mode: ${data.provider||'hybrid'} • OpenAI: ${openai} • ${gemini} • ${local}`;
-  if(status)status.textContent=`Server status OK. OpenAI: ${openai}; Model: ${data.openaiModel||'not specified'}. Key validity සඳහා Test OpenAI Connection ඔබන්න.`;
-  if($('#connection')&&data.openaiConfigured)$('#connection').textContent='● HYBRID: READY';
+  if(status)status.textContent=`Server status OK. OpenAI: ${openai}; Model: ${data.openaiModel||'not specified'}. මෙය API key එක තිබෙන බව පමණයි; සැබෑ සම්බන්ධතාව තහවුරු කිරීමට Test OpenAI Connection ඔබන්න.`;
+  if($('#connection')&&data.openaiConfigured)$('#connection').textContent='● HYBRID: KEY CONFIGURED';
  }catch(error){if(details)details.textContent='AI status ලබාගත නොහැක: '+error.message;}
 }
 async function testOpenAI(){
@@ -181,7 +181,7 @@ async function testOpenAI(){
   if(!response.ok)throw new Error([data.error,data.diagnostic,data.hint].filter(Boolean).join(' | ')||`HTTP ${response.status}`);
   status.textContent=`සාර්ථකයි: ${data.provider} • ${data.model} • ${data.reply}`;
   $('#connection').textContent='● OPENAI CONNECTED';
- }catch(error){status.textContent='OpenAI පරීක්ෂණය අසාර්ථකයි: '+error.message;$('#connection').textContent='● OPENAI ERROR';}
+ }catch(error){status.textContent='OpenAI පරීක්ෂණය අසාර්ථකයි: '+error.message+' — Render Environment සහ Logs පරීක්ෂා කරන්න.';$('#connection').textContent='● OPENAI ERROR';}
  finally{button.disabled=false;}
 }
 $('#testOpenAI')?.addEventListener('click',testOpenAI);
