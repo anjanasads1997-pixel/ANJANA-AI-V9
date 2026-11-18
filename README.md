@@ -64,3 +64,14 @@ Tests cover frontend/backend endpoint alignment, session-auth UI wiring, provide
 - The Research/Learning panel needs a dedicated research service endpoint; it is not implemented by `/api/chat`.
 - Camera capture currently previews locally; it does not send images to a vision model.
 - Android APK packaging and full real-device validation remain separate tasks.
+
+## V10.2.4 — Fixes for Render and mobile browsers
+
+- OpenAI remains the primary cloud provider; Gemini is secondary and Ollama is the local fallback.
+- The server now permits WebAssembly compilation required by the Transformers.js CPU/WASM offline engine (`wasm-unsafe-eval`).
+- Offline ONNX runtime assets use an explicit CDN path.
+- Mobile layout prevents horizontal overflow and the frontend/service-worker cache versions are refreshed.
+- AI backend errors include a short redacted diagnostic to help identify invalid API keys, model access, quota, or provider failures.
+- LiveAvatar defaults to non-sandbox mode. Set `LIVEAVATAR_SANDBOX=false` in Render only when the LiveAvatar account/avatar is enabled for Live mode.
+
+For Render, verify `OPENAI_API_KEY` contains the actual OpenAI API key, `OPENAI_BASE_URL=https://api.openai.com/v1`, `OPENAI_MODEL=gpt-4.1-mini`, and `AI_PROVIDER=hybrid`. Do not commit API keys. A code deployment cannot activate API billing, grant model access, or grant LiveAvatar account permissions.
