@@ -109,6 +109,7 @@ function createApp() {
       signal: AbortSignal.timeout(30000),
       body: JSON.stringify({
         model,
+        temperature: 0.7,
         messages: [
           { role: 'system', content: language === 'si'
             ? 'ඔබ ANJANA AI ය. පැහැදිලි, ප්‍රයෝජනවත් සිංහලෙන් පිළිතුරු දෙන්න. අවශ්‍ය විට ඉංග්‍රීසි තාක්ෂණික පද භාවිත කරන්න.'
@@ -124,32 +125,22 @@ function createApp() {
     return { reply, model: data.model || model, provider: config.provider || 'openai-compatible' };
   }
 
-  // OpenAI is the preferred paid cloud engine. The BACKUP_OPENAI_* variables
-  // are kept for compatibility with the existing Render service configuration.
-  // Do not reuse OPENAI_API_KEY here: the existing deployment uses that name
-  // for Google's Gemini-compatible endpoint.
   async function openAiChat(message, language) {
+    // OpenAI is the preferred paid cloud engine. Keep credentials server-side.
+    // BACKUP_OPENAI_* remains a migration alias for older deployments.
+    const apiKey = process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY;
+    const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+    const model = process.env.OPENAI_MODEL || process.env.BACKUP_OPENAI_MODEL || 'gpt-4.1-mini';
     return openAiCompatibleChat(message, language, {
-      apiKey: process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_PRIMARY_API_KEY,
-      baseUrl: process.env.BACKUP_OPENAI_BASE_URL || 'https://api.openai.com/v1',
-      model: process.env.BACKUP_OPENAI_MODEL || 'gpt-4o-mini',
+      apiKey,
+      baseUrl,
+      model,
       label: 'OpenAI', provider: 'openai'
     });
   }
 
   async function primaryCloudChat(message, language) {
-    if (process.env.GEMINI_API_KEY) return geminiChat(message, language);
-    // Supports the existing Render setup where Gemini is exposed through
-    // Google's OpenAI-compatible endpoint using OPENAI_* environment names.
-    if (process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL) {
-      return openAiCompatibleChat(message, language, {
-        apiKey: process.env.OPENAI_API_KEY,
-        baseUrl: process.env.OPENAI_BASE_URL,
-        model: process.env.OPENAI_MODEL || 'gemini-2.5-flash',
-        label: 'Primary cloud AI', provider: 'gemini-compatible'
-      });
-    }
-    throw new Error('Primary cloud AI credentials are not configured');
+    return openAiChat(message, language);
   }
 
   async function geminiChat(message, language) {
@@ -171,40 +162,27 @@ function createApp() {
   }
 
   async function hybridChat(message, language) {
-    const provider = String(process.env.AI_PROVIDER || 'openai').toLowerCase();
-    if (provider === 'ollama' || provider === 'local') {
-      return { ...(await ai.chat(message)), provider: 'ollama' };
-    }
-    if (provider === 'gemini') return primaryCloudChat(message, language);
+    const provider = String(process.env.AI_PROVIDER || 'hybrid').toLowerCase();
+    if (provider === 'gemini') return geminiChat(message, language);
+    if (provider === 'openai') return openAiChat(message, language);
+    if (provider === 'ollama' || provider === 'local') return { ...(await ai.chat(message)), provider: 'ollama' };
 
-    // OpenAI is always attempted first for openai/cloud/hybrid modes.
-    // The historical BACKUP_OPENAI_* names are retained because Render already uses them.
-    let openAiError;
+    // V10.2.3 default order: OpenAI (primary) -> Gemini (secondary) -> Ollama (offline).
     try {
       return await openAiChat(message, language);
     } catch (error) {
-      openAiError = error;
-      console.warn('OpenAI primary unavailable; trying Gemini fallback:', error.message);
+      console.warn('OpenAI unavailable; trying Gemini:', error.message);
     }
 
-    let geminiError;
-    if (process.env.GEMINI_API_KEY || (process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL)) {
+    if (process.env.GEMINI_API_KEY) {
       try {
-        return await primaryCloudChat(message, language);
+        return await geminiChat(message, language);
       } catch (error) {
-        geminiError = error;
-        console.warn('Gemini fallback unavailable; trying local Ollama:', error.message);
+        console.warn('Gemini unavailable; trying local Ollama:', error.message);
       }
     }
 
-    try {
-      return { ...(await ai.chat(message)), provider: 'ollama' };
-    } catch (ollamaError) {
-      const reasons = [openAiError, geminiError, ollamaError]
-        .filter(Boolean)
-        .map(error => String(error.message || error).slice(0, 180));
-      throw new Error(`All configured AI providers are unavailable: ${reasons.join(' | ')}`);
-    }
+    return { ...(await ai.chat(message)), provider: 'ollama' };
   }
 
   app.get('/api/health', (req, res) => {
@@ -215,7 +193,7 @@ function createApp() {
         authentication: true, hybridAi: true,
         liveAvatar: Boolean(process.env.LIVEAVATAR_API_KEY),
         liveAvatarAvatarId: Boolean(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID),
-        textToSpeech: Boolean(process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_PRIMARY_API_KEY)
+        textToSpeech: Boolean(process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_API_KEY)
       }
     });
   });
@@ -224,12 +202,11 @@ function createApp() {
     try {
       const ollama = await ai.status();
       res.json({
-        provider: process.env.AI_PROVIDER || 'openai',
-        activeProvider: ['openai', 'cloud', 'hybrid'].includes(String(process.env.AI_PROVIDER || 'openai').toLowerCase()) ? 'openai' : (process.env.AI_PROVIDER || 'hybrid'),
-        openaiConfigured: Boolean(process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_PRIMARY_API_KEY),
-        geminiConfigured: Boolean(process.env.GEMINI_API_KEY || (process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL)),
+        provider: process.env.AI_PROVIDER || 'hybrid',
+        geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+        openaiConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY),
         ollama,
-        onlineReady: Boolean(process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_PRIMARY_API_KEY || process.env.GEMINI_API_KEY || (process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL))
+        onlineReady: Boolean(process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.GEMINI_API_KEY)
       });
     } catch (error) {
       res.status(503).json({ error: 'AI status unavailable' });
@@ -240,7 +217,7 @@ function createApp() {
     res.json({
       configured: Boolean(process.env.LIVEAVATAR_API_KEY),
       avatarIdConfigured: Boolean(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID),
-      ttsConfigured: Boolean(process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_PRIMARY_API_KEY),
+      ttsConfigured: Boolean(process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
       mode: String(process.env.LIVEAVATAR_MODE || 'LITE').toUpperCase(),
       sandbox: String(process.env.LIVEAVATAR_SANDBOX || 'true').toLowerCase() === 'true'
     });
@@ -313,14 +290,15 @@ function createApp() {
       return res.json({ ...result, language: request.language });
     } catch (error) {
       console.error('AI chat error:', error.message);
-      return res.status(503).json({ error: 'OpenAI is unavailable. Check BACKUP_OPENAI_API_KEY, BACKUP_OPENAI_BASE_URL, BACKUP_OPENAI_MODEL and API billing; then check Gemini/Ollama fallback settings.' });
+      return res.status(503).json({ error: 'AI providers are unavailable. Check OpenAI/Gemini credentials or the local Ollama connection.' });
     }
   });
 
   app.post('/api/tts', requireAuth, chatLimiter, async (req, res) => {
     const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
     if (!text || text.length > 3500) return res.status(400).json({ error: 'Text must contain 1-3500 characters.' });
-    const apiKey = process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_PRIMARY_API_KEY || ''; 
+    const openAiBaseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const apiKey = process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || (openAiBaseUrl === 'https://api.openai.com/v1' ? process.env.OPENAI_API_KEY : '');
     if (!apiKey) return res.status(503).json({ error: 'Text-to-speech is not configured. Add OPENAI_TTS_API_KEY or BACKUP_OPENAI_API_KEY in Render.' });
     const allowedVoices = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse', 'marin', 'cedar']);
     const requestedVoice = typeof req.body?.voice === 'string' ? req.body.voice : '';
