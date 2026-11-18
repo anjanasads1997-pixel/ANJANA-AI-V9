@@ -2,7 +2,7 @@
 <html lang="si">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#071426"><meta name="application-name" content="ANJANA AI V10.2.4"><title>ANJANA AI SUPER — Multi-Model Hybrid Assistant</title>
+<meta name="theme-color" content="#071426"><meta name="application-name" content="ANJANA AI V10.2.5"><title>ANJANA AI SUPER — Multi-Model Hybrid Assistant</title>
 <style>
 :root{--bg:#06101e;--panel:#0c1c30;--panel2:#102943;--line:#23445f;--cyan:#55e5ff;--txt:#eaf7ff;--muted:#9ab4c8;--green:#71e5b1}
 *{box-sizing:border-box;min-width:0}html,body{width:100%;max-width:100%;overflow-x:hidden}body{margin:0;background:radial-gradient(ellipse at 50% -10%,#164568 0,#06101e 55%);color:var(--txt);font:15px system-ui,"Noto Sans Sinhala",sans-serif;min-height:100vh}
@@ -50,7 +50,7 @@ details summary{cursor:pointer;color:var(--cyan);font-size:13px}details .inside{
 @media(max-width:600px){main{padding:10px}.panel{padding:10px}.tabs{gap:5px}.tabs button{padding:9px 5px;font-size:12px}.row input{flex-basis:100%}.msg{max-width:96%}.live-avatar-video-wrap{max-width:100%}}
 </style></head>
 <body>
-<header><div class="brand"><div class="logo">A</div><div><b>ANJANA AI</b><small>PERSONAL INTELLIGENCE SYSTEM</small></div></div><span class="pill" id="connection">● READY</span></header>
+<header><div class="brand"><div class="logo">A</div><div><b>ANJANA AI</b><small>PERSONAL INTELLIGENCE SYSTEM</small></div></div><span class="pill" id="connection">● CHECKING</span></header><div id="connectionDetails" class="hint" role="status" aria-live="polite" style="padding:6px 14px;max-width:1100px;margin:0 auto">AI backend තත්ත්වය පරීක්ෂා කරමින්…</div>
 <main>
 <section class="hero">
 <div class="avatar-stage">
@@ -83,6 +83,7 @@ details summary{cursor:pointer;color:var(--cyan);font-size:13px}details .inside{
 </section>
 <div class="tabs"><button id="hybridTab" class="sel">Hybrid AI</button><button id="localTab">Offline AI</button><button id="liveTab">Live AI</button><button id="toolsTab">Tools</button></div>
 
+<section class="panel" id="aiDiagnostics"><h3>AI Connection Diagnostics</h3><div class="row"><button class="btn primary" id="testOpenAI" type="button">Test OpenAI Connection</button><button class="btn" id="refreshAIStatus" type="button">Refresh Status</button></div><p class="hint" id="aiTestStatus" role="status" aria-live="polite">OpenAI API සම්බන්ධතාව තවම පරීක්ෂා කර නැත.</p></section>
 <section id="localPanel" class="panel">
 <h3>Offline AI Engine</h3>
 <p class="hint">Android සඳහා Engine දෙකක් උත්සාහ කරයි: WebGPU තිබේ නම් WebLLM; එය නොමැති හෝ අසාර්ථක නම් CPU/WASM මත Transformers.js. පළමු වරට Internet හරහා model files බාගත කළ යුතුය. බාගත කිරීම සම්පූර්ණ වූ පසු browser cache පවතින තුරු Offline භාවිත කළ හැක.</p>
@@ -232,4 +233,4 @@ details summary{cursor:pointer;color:var(--cyan);font-size:13px}details .inside{
 <div class="composer"><textarea id="prompt" rows="1" placeholder="ANJANA AI වෙත පණිවිඩයක් ලියන්න…"></textarea><button class="btn primary" id="send">Send</button></div>
 <footer>ANJANA AI Hybrid v3.1 • Created by Anjana Sandakelum • AI output may be inaccurate; verify important information.</footer>
 </main>
-<script type="module" src="/app-v10.js?v=10.2.4"></script></body></html>
+<script type="module" src="/app-v10.js?v=10.2.5"></script></body></html>
