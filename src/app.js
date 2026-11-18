@@ -48,10 +48,10 @@ function createApp() {
         imgSrc: ["'self'", 'data:', 'https:'],
         mediaSrc: ["'self'", 'blob:', 'data:'],
         objectSrc: ["'none'"],
-        scriptSrc: ["'self'", 'https:'],
+        scriptSrc: ["'self'", 'https:', "'wasm-unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         workerSrc: ["'self'", 'blob:'],
-        connectSrc: ["'self'", 'https:', 'wss:']
+        connectSrc: ["'self'", 'https:', 'wss:', 'blob:']
       }
     },
     crossOriginEmbedderPolicy: false
@@ -187,7 +187,7 @@ function createApp() {
 
   app.get('/api/health', (req, res) => {
     res.json({
-      status: 'ok', service: 'ANJANA AI', version: '10.2.3',
+      status: 'ok', service: 'ANJANA AI', version: '10.2.4',
       core: core.getStatus(),
       features: {
         authentication: true, hybridAi: true,
@@ -219,7 +219,7 @@ function createApp() {
       avatarIdConfigured: Boolean(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID),
       ttsConfigured: Boolean(process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
       mode: String(process.env.LIVEAVATAR_MODE || 'LITE').toUpperCase(),
-      sandbox: String(process.env.LIVEAVATAR_SANDBOX || 'true').toLowerCase() === 'true'
+      sandbox: String(process.env.LIVEAVATAR_SANDBOX || 'false').toLowerCase() === 'true'
     });
   });
 
@@ -227,7 +227,7 @@ function createApp() {
     const apiKey = String(process.env.LIVEAVATAR_API_KEY || '').trim();
     const avatarId = String(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID || '245c5ef6-fea0-4095-9894-79ff8f3947be').trim();
     const avatarMode = String(process.env.LIVEAVATAR_MODE || 'LITE').trim().toUpperCase();
-    const sandboxValue = String(process.env.LIVEAVATAR_SANDBOX ?? 'true').trim().toLowerCase();
+    const sandboxValue = String(process.env.LIVEAVATAR_SANDBOX ?? 'false').trim().toLowerCase();
     const isSandbox = sandboxValue === 'true';
     if (!apiKey) return res.status(503).json({ error: 'Render හි LIVEAVATAR_API_KEY සකසා නැත.' });
     if (!avatarId) return res.status(503).json({ error: 'Render හි LIVEAVATAR_AVATAR_ID සකසා නැත.' });
@@ -262,7 +262,7 @@ function createApp() {
           provider_status: response.status,
           provider_code: String(providerCode).slice(0, 80) || undefined,
           hint: response.status === 400
-            ? 'Avatar ID එක එම LiveAvatar ගිණුමට අයත්ද සහ Sandbox පරිසරයට ගැළපේද පරීක්ෂා කරන්න.'
+            ? isSandbox ? 'මෙම Avatar ID එක Sandbox mode සඳහා සහාය නොදක්වයි. Render හි LIVEAVATAR_SANDBOX=false ලෙස සකසා, ඔබගේ ගිණුමේ Live mode අවසරය සහ Avatar ID පරීක්ෂා කරන්න.' : 'Avatar ID එක එම LiveAvatar ගිණුමට අයත්ද සහ Live mode සඳහා අවසර තිබේද පරීක්ෂා කරන්න.'
             : response.status === 401 || response.status === 403
               ? 'LIVEAVATAR_API_KEY සහ එහි account permissions පරීක්ෂා කරන්න.'
               : undefined
@@ -290,7 +290,14 @@ function createApp() {
       return res.json({ ...result, language: request.language });
     } catch (error) {
       console.error('AI chat error:', error.message);
-      return res.status(503).json({ error: 'AI providers are unavailable. Check OpenAI/Gemini credentials or the local Ollama connection.' });
+      // Return a bounded diagnostic so the UI can distinguish invalid keys,
+      // quota/model errors and an unavailable local fallback without exposing secrets.
+      const diagnostic = String(error.message || 'Unknown provider error').replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,})/g, '[redacted]').slice(0, 220);
+      return res.status(503).json({
+        error: 'AI providers are unavailable.',
+        diagnostic,
+        hint: 'Render Environment හි OPENAI_API_KEY, OPENAI_BASE_URL=https://api.openai.com/v1 සහ OPENAI_MODEL=gpt-4.1-mini පරීක්ෂා කරන්න.'
+      });
     }
   });
 
