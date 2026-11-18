@@ -1,8 +1,8 @@
 {
   "name": "anjana-ai-v10",
-  "version": "10.2.6",
+  "version": "10.2.7",
   "private": true,
-  "description": "ANJANA AI V10.2.6 bilingual hybrid assistant: OpenAI primary with retry and diagnostics, Gemini secondary, Ollama fallback, LiveAvatar LITE",
+  "description": "ANJANA AI V10.2.7 bilingual hybrid assistant: legacy Render OpenAI/Gemini configuration compatibility and diagnostics, Gemini secondary, Ollama fallback, LiveAvatar LITE",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
