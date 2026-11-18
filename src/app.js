@@ -187,13 +187,14 @@ function createApp() {
 
   app.get('/api/health', (req, res) => {
     res.json({
-      status: 'ok', service: 'ANJANA AI', version: '10.2.4',
+      status: 'ok', service: 'ANJANA AI', version: '10.2.5',
       core: core.getStatus(),
       features: {
         authentication: true, hybridAi: true,
         liveAvatar: Boolean(process.env.LIVEAVATAR_API_KEY),
         liveAvatarAvatarId: Boolean(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID),
-        textToSpeech: Boolean(process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_API_KEY)
+        textToSpeech: Boolean(process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
+        liveAvatarSandbox: String(process.env.LIVEAVATAR_SANDBOX || 'false').toLowerCase() === 'true'
       }
     });
   });
@@ -202,7 +203,9 @@ function createApp() {
     try {
       const ollama = await ai.status();
       res.json({
+        version: '10.2.5',
         provider: process.env.AI_PROVIDER || 'hybrid',
+        openaiModel: process.env.OPENAI_MODEL || process.env.BACKUP_OPENAI_MODEL || 'gpt-4.1-mini',
         geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
         openaiConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY),
         ollama,
@@ -210,6 +213,17 @@ function createApp() {
       });
     } catch (error) {
       res.status(503).json({ error: 'AI status unavailable' });
+    }
+  });
+
+  app.post('/api/ai/test', requireAuth, chatLimiter, async (req, res) => {
+    try {
+      const result = await openAiChat('Reply with exactly: ANJANA AI OpenAI connection OK.', 'en');
+      return res.json({ ok: true, provider: result.provider, model: result.model, reply: result.reply });
+    } catch (error) {
+      const diagnostic = String(error.message || 'Unknown OpenAI error').replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,})/g, '[redacted]').slice(0, 220);
+      console.error('OpenAI connection test failed:', diagnostic);
+      return res.status(503).json({ ok: false, error: 'OpenAI connection failed', diagnostic, hint: 'Render Environment හි OPENAI_API_KEY, OPENAI_BASE_URL සහ OPENAI_MODEL පරීක්ෂා කරන්න.' });
     }
   });
 
@@ -225,12 +239,12 @@ function createApp() {
 
   app.post('/api/avatar/session', requireAuth, avatarLimiter, async (req, res) => {
     const apiKey = String(process.env.LIVEAVATAR_API_KEY || '').trim();
-    const avatarId = String(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID || '245c5ef6-fea0-4095-9894-79ff8f3947be').trim();
+    const avatarId = String(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID || '').trim();
     const avatarMode = String(process.env.LIVEAVATAR_MODE || 'LITE').trim().toUpperCase();
     const sandboxValue = String(process.env.LIVEAVATAR_SANDBOX ?? 'false').trim().toLowerCase();
     const isSandbox = sandboxValue === 'true';
     if (!apiKey) return res.status(503).json({ error: 'Render හි LIVEAVATAR_API_KEY සකසා නැත.' });
-    if (!avatarId) return res.status(503).json({ error: 'Render හි LIVEAVATAR_AVATAR_ID සකසා නැත.' });
+    if (!avatarId) return res.status(503).json({ error: 'Render හි ඔබගේ ගිණුමට අයත් LIVEAVATAR_AVATAR_ID සකසා නැත.' });
     if (avatarMode !== 'LITE') return res.status(400).json({ error: 'LIVEAVATAR_MODE අගය LITE විය යුතුයි.' });
     if (!['true', 'false'].includes(sandboxValue)) return res.status(400).json({ error: 'LIVEAVATAR_SANDBOX අගය true හෝ false විය යුතුයි.' });
 
