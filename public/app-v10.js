@@ -81,7 +81,7 @@ async function loadModel(){
   $('#localStatus').textContent='CPU/WASM AI library බාගත කරමින්…';
   const {pipeline,env}=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
   env.allowLocalModels=false;env.allowRemoteModels=true;env.useBrowserCache=true;
-  if(env.backends?.onnx?.wasm){env.backends.onnx.wasm.numThreads=1;env.backends.onnx.wasm.proxy=false;}
+  if(env.backends?.onnx?.wasm){env.backends.onnx.wasm.numThreads=1;env.backends.onnx.wasm.proxy=false;env.backends.onnx.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/';}
   const model='onnx-community/Qwen2.5-0.5B-Instruct';
   wasmEngine=await pipeline('text-generation',model,{
    device:'wasm',dtype:'q4',
@@ -100,6 +100,7 @@ async function loadModel(){
  }catch(e){
   engine=null;wasmEngine=null;engineType='';
   $('#localStatus').textContent='Offline Engine load අසාර්ථකයි: '+(e.message||e);
+  if(/wasm|WebAssembly|Content Security Policy|unsafe-eval/i.test(String(e.message||e)))progress('WebAssembly අවහිර වී තිබේ නම් නව V10.2.4 server CSP deploy කර browser cache clear කර නැවත උත්සාහ කරන්න.');
   $('#localStatus').className='hint danger';$('#connection').textContent='● LOCAL FALLBACK';
   progress('Internet, storage, browser memory සහ model download අවසර පරීක්ෂා කරන්න.');
  }finally{b.disabled=false;renderLearningDashboard?.();}
@@ -183,7 +184,7 @@ async function answer(q){
    let data={};
    try{data=raw?JSON.parse(raw):{};}catch(e){throw new Error('Backend එක JSON නොවන ප්‍රතිචාරයක් ලබා දුන්නා (HTTP '+res.status+').');}
    if(!res.ok){
-    const serverMessage=data.error?.message||data.message||data.error||res.statusText;
+    const serverMessage=[data.error?.message||data.error,data.diagnostic,data.hint].filter(Boolean).join(' | ')||data.message||res.statusText;
     throw new Error('Backend HTTP '+res.status+': '+String(serverMessage).slice(0,240));
    }
    const candidate=data.choices?.[0]?.message?.content??data.reply??data.response??data.message?.content;
@@ -229,7 +230,7 @@ async function answer(q){
    throw new Error('Offline CPU/WASM Engine දෝෂය: '+detail);
   }
  }
- if(mode==='auto'&&!engine&&!wasmEngine)return 'දැනට Offline AI Model එක load කර නැත. Internet තිබේ නම් Live Backend එක භාවිත කරන්න. Offline සඳහා Load Offline Model ඔබා පළමු model download එක සම්පූර්ණ කරන්න. මෙය මූලික fallback පණිවිඩයක් පමණි.';
+ if(mode==='auto'&&!engine&&!wasmEngine)return 'Backend සම්බන්ධතාව අසාර්ථකයි. ඉහත Live Status පණිවිඩයේ විස්තර පරීක්ෂා කරන්න. Offline AI භාවිතයට පෙර Load Offline Model මඟින් model එක සම්පූර්ණයෙන් load කළ යුතුයි.';
  return localFallback(q);
 }
 let sending=false;
@@ -300,7 +301,7 @@ async function startLiveAvatar(){
   const tokenData=await tokenResponse.json().catch(()=>({}));
   if(!tokenResponse.ok)throw new Error(tokenData.error||'LiveAvatar session token ලබාගත නොහැක.');
   if(!tokenData.session_token)throw new Error('LiveAvatar session token ප්‍රතිචාරයේ නොමැත.');
-  const session=new sdk.LiveAvatarSession(tokenData.session_token,{autoKeepAlive:true,voiceChat:false});
+  const session=new sdk.LiveAvatarSession(tokenData.session_token,{autoKeepAlive:true,voiceChat:{defaultMuted:true}});
   await session.start();
   const video=$('#liveAvatarVideo');
   if(!video)throw new Error('LiveAvatar video element එක නොමැත.');
