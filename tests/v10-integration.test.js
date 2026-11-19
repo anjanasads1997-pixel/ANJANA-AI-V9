@@ -10,7 +10,7 @@ test('V10 frontend uses the existing authenticated chat API', () => {
   const html = read('public/index.html');
   const js = read('public/app-v10.js');
   assert.ok(html.includes('value="/api/chat"'));
-  assert.ok(html.includes('src="/app-v10.js?v=10.3.0"')); 
+  assert.ok(html.includes('app-v10.js?v=10.4.0')); 
   assert.ok(js.includes("credentials:'same-origin'"));
   assert.ok(js.includes('JSON.stringify({message:q})'));
 });
@@ -52,8 +52,8 @@ test('V10.3.0 allows WebAssembly and cache-busts the mobile client', () => {
   const html = read('public/index.html');
   const sw = read('public/sw.js');
   assert.ok(app.includes("'wasm-unsafe-eval'"));
-  assert.ok(html.includes('app-v10.js?v=10.3.0'));
-  assert.ok(sw.includes('anjana-ai-v10.3.0-shell-v1'));
+  assert.ok(html.includes('app-v10.js?v=10.4.0'));
+  assert.ok(sw.includes('anjana-ai-v10.4.0-shell-v1'));
 });
 
 test('V10.3.0 defaults LiveAvatar to live mode and explains sandbox rejection', () => {
