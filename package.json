@@ -1,8 +1,8 @@
 {
   "name": "anjana-ai-v10",
-  "version": "10.3.0",
+  "version": "10.4.0",
   "private": true,
-  "description": "ANJANA AI V10.3 bilingual hybrid assistant with live-avatar-first responsive workspace",
+  "description": "ANJANA AI full-screen live-avatar-first bilingual hybrid assistant",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {

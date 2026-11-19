@@ -119,3 +119,4 @@ Recommended long-term cleanup (optional after V10.2.8 is deployed): set `OPENAI_
 - The LiveAvatar video is displayed in the main avatar stage after session start; existing start/stop controls and API routes are preserved.
 - Chat, quick prompts, and message composer are grouped beside the avatar on desktop and stacked on mobile.
 - Real streamed avatar output still requires valid server-side `LIVEAVATAR_API_KEY` and an account-owned `LIVEAVATAR_AVATAR_ID` (or `ANJANA_LIVEAVATAR_ID`). TTS requires the configured server-side TTS key.
+\n\n## V10.4.0 — Full-Screen Live Avatar\nThe main screen now follows the supplied reference: a large avatar/live-video panel beside a full-height chat panel on desktop, and a stacked portrait/chat layout on mobile. Account, offline engine, diagnostics and tools remain available in the collapsible settings section.\n
