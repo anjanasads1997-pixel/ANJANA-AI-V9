@@ -2,13 +2,13 @@
 <html lang="si">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#071426"><meta name="application-name" content="ANJANA AI V10.2.5"><title>ANJANA AI SUPER — Multi-Model Hybrid Assistant</title>
+<meta name="theme-color" content="#071426"><meta name="application-name" content="ANJANA AI V10.3.0"><title>ANJANA AI V10.3 — Live Avatar Workspace</title>
 <style>
 :root{--bg:#06101e;--panel:#0c1c30;--panel2:#102943;--line:#23445f;--cyan:#55e5ff;--txt:#eaf7ff;--muted:#9ab4c8;--green:#71e5b1}
 *{box-sizing:border-box;min-width:0}html,body{width:100%;max-width:100%;overflow-x:hidden}body{margin:0;background:radial-gradient(ellipse at 50% -10%,#164568 0,#06101e 55%);color:var(--txt);font:15px system-ui,"Noto Sans Sinhala",sans-serif;min-height:100vh}
 header{position:sticky;top:0;z-index:5;background:#071426ed;backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
 .brand{display:flex;align-items:center;gap:10px}.logo{height:42px;width:42px;border:2px solid var(--cyan);border-radius:50%;display:grid;place-items:center;color:var(--cyan);font-weight:900;box-shadow:0 0 18px #55e5ff55}.brand b{letter-spacing:2px}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:1px}.pill{font-size:11px;border:1px solid var(--line);border-radius:20px;padding:6px 9px;color:var(--green)}
-main{width:100%;max-width:850px;margin:0 auto;padding:14px;display:flex;flex-direction:column;min-height:calc(100dvh - 68px)}
+main{width:100%;max-width:1220px;margin:0 auto;padding:14px;display:flex;flex-direction:column;min-height:calc(100dvh - 68px)}
 .hero{text-align:center;padding:14px 0}.reactor{margin:auto auto 10px;width:90px;height:90px;border-radius:50%;border:1px solid var(--cyan);display:grid;place-items:center;font-size:26px;font-weight:800;color:#a4f4ff;background:radial-gradient(circle,#175478,#071426 70%);box-shadow:0 0 28px #2dd6f555,inset 0 0 22px #2dd6f533}.hero h1{font-size:20px;margin:4px}.hero p{font-size:12px;color:var(--muted);margin:4px}
 .tabs{display:flex;gap:7px;margin:10px 0}.tabs button,.btn,.chip{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:10px 12px;font:inherit}.tabs button{flex:1}.tabs .sel{border-color:var(--cyan);color:var(--cyan);background:#10334a}
 .panel{background:#0a1b2c;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}.panel h3{font-size:14px;margin:0 0 8px}.hint{font-size:12px;color:var(--muted);line-height:1.5}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}input,select,textarea{background:#061525;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;width:100%;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--cyan)}.row input{flex:1}.btn.primary{background:#08799a;border-color:#2dd6f5;font-weight:700}.btn:disabled{opacity:.5}
@@ -48,6 +48,40 @@ details summary{cursor:pointer;color:var(--cyan);font-size:13px}details .inside{
 .live-avatar-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 #liveAvatarStatus{margin-top:8px}
 @media(max-width:600px){main{padding:10px}.panel{padding:10px}.tabs{gap:5px}.tabs button{padding:9px 5px;font-size:12px}.row input{flex-basis:100%}.msg{max-width:96%}.live-avatar-video-wrap{max-width:100%}}
+
+/* V10.3 live-avatar-first workspace */
+#assistantWorkspace{display:grid;grid-template-columns:minmax(300px,.92fr) minmax(340px,1.08fr);gap:18px;align-items:stretch;margin:10px 0 18px;min-height:650px}
+#avatarColumn,#conversationColumn{min-width:0;background:linear-gradient(160deg,#0b2038,#061323 72%);border:1px solid #1d5273;border-radius:22px;padding:16px;box-shadow:0 12px 38px #0005}
+#avatarColumn .hero{padding:0;text-align:left}
+#avatarColumn .avatar-stage{padding:0;align-items:stretch;text-align:left}
+#avatarColumn .avatar-frame{width:100%;height:auto;aspect-ratio:4/5;max-height:620px;border-radius:20px;padding:0;overflow:hidden;position:relative;background:#020914}
+#avatarColumn .avatar-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 24%;border-radius:18px}
+#avatarColumn .avatar-frame .avatar-mouth{display:none}
+#avatarColumn .avatar-caption{font-size:17px;margin-top:12px}
+#avatarColumn .avatar-state{font-size:12px;min-height:20px}
+#avatarColumn .hero h1{font-size:23px;margin:14px 0 4px}
+#avatarColumn .hero p{text-align:left}
+#avatarColumn .live-avatar-panel{margin:12px 0 0;padding:0;background:transparent;border:0}
+#avatarColumn .live-avatar-panel h3{font-size:15px}
+#avatarColumn .live-avatar-panel>p:first-of-type{display:none}
+#avatarColumn .live-avatar-video-wrap{position:absolute;inset:0;width:100%;height:100%;max-width:none;aspect-ratio:auto;margin:0;border:0;border-radius:18px;background:#020914;display:block;overflow:hidden;z-index:3}
+#avatarColumn #liveAvatarVideo{width:100%;height:100%;object-fit:cover;display:none}
+#avatarColumn #avatarFrame.live-connected #liveAvatarVideo{display:block}
+#avatarColumn #avatarFrame.live-connected #anjanaAvatar{opacity:0}
+#avatarColumn #liveAvatarPlaceholder{position:absolute;left:12px;right:12px;bottom:12px;padding:9px 12px;border:1px solid #55e5ff55;border-radius:12px;background:#06101ed9;color:#d9f7ff;text-align:center}
+#avatarColumn #avatarFrame.live-connected #liveAvatarPlaceholder{display:none}
+#avatarColumn .live-avatar-controls{margin-top:12px}
+#avatarColumn #startLiveAvatar{flex:1}
+#avatarColumn #liveAvatarStatus{padding:9px 11px;border-radius:10px;background:#061525;border:1px solid #1d405c}
+#conversationColumn{display:flex;flex-direction:column;min-height:650px}
+.conversation-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.conversation-heading h2{font-size:18px;margin:0}
+.conversation-heading p{font-size:11px;color:var(--muted);margin:3px 0 0}
+#conversationColumn #chat{flex:1;min-height:300px;max-height:unset;padding:8px 2px 14px}
+#conversationColumn .composer{position:sticky;bottom:0;margin-top:8px}
+#conversationColumn .quick{margin-top:8px}
+@media(max-width:760px){#assistantWorkspace{grid-template-columns:1fr;gap:12px;min-height:0}#avatarColumn,#conversationColumn{padding:12px;border-radius:18px}#avatarColumn .avatar-frame{max-height:520px;aspect-ratio:4/4.4}#conversationColumn{min-height:520px}#conversationColumn #chat{min-height:260px;max-height:52dvh}}
+
 </style></head>
 <body>
 <header><div class="brand"><div class="logo">A</div><div><b>ANJANA AI</b><small>PERSONAL INTELLIGENCE SYSTEM</small></div></div><span class="pill" id="connection">● CHECKING</span></header><div id="connectionDetails" class="hint" role="status" aria-live="polite" style="padding:6px 14px;max-width:1100px;margin:0 auto">AI backend තත්ත්වය පරීක්ෂා කරමින්…</div>
@@ -230,7 +264,29 @@ details summary{cursor:pointer;color:var(--cyan);font-size:13px}details .inside{
 <div id="chat" aria-live="polite"></div>
 <section class="panel" id="personalSettings"><h3>ANJANA AI Settings</h3><div class="row"><label class="hint" for="assistantLanguage">Voice language</label><select id="assistantLanguage" style="max-width:190px"><option value="si-LK">සිංහල</option><option value="en-US">English</option></select><button class="btn" id="exportChat">Export Chat</button><button class="btn" id="stopAll">Stop All</button></div><p class="hint">Export Chat මඟින් සංවාදය TXT ගොනුවක් ලෙස ලබාගත හැක. Stop All මඟින් microphone, camera සහ කථන ප්‍රතිදානය නවතයි.</p></section>
 <div class="quick"><button class="chip" data-q="ඔබ කවුද? ඔබට කළ හැක්කේ මොනවාද?">ඔබ කවුද?</button><button class="chip" data-q="මට දවසේ වැඩ සැලසුම් කර දෙන්න.">දින සැලසුම</button><button class="chip" data-q="Explain how a computer works.">ICT Help</button><button class="chip" id="clear">Clear Chat</button></div>
-<div class="composer"><textarea id="prompt" rows="1" placeholder="ANJANA AI වෙත පණිවිඩයක් ලියන්න…"></textarea><button class="btn primary" id="send">Send</button></div>
-<footer>ANJANA AI V10.2.7 • Created by Anjana Sandakelum • AI output may be inaccurate; verify important information.</footer>
+<div class="composer" id="chatComposer"><textarea id="prompt" rows="1" placeholder="ANJANA AI වෙත පණිවිඩයක් ලියන්න…"></textarea><button class="btn primary" id="send">Send</button></div>
+<footer>ANJANA AI V10.3.0 • Created by Anjana Sandakelum • AI output may be inaccurate; verify important information.</footer>
 </main>
-<script type="module" src="/app-v10.js?v=10.2.7"></script></body></html>
+
+<script>
+(function(){
+ const main=document.querySelector('main');
+ const hero=main&&main.querySelector(':scope > .hero');
+ const avatarPanel=document.getElementById('liveAvatarPanel');
+ const chat=document.getElementById('chat');
+ const quick=main&&main.querySelector(':scope > .quick');
+ const composer=document.getElementById('chatComposer');
+ if(!main||!hero||!avatarPanel||!chat||!quick||!composer)return;
+ const workspace=document.createElement('section');workspace.id='assistantWorkspace';workspace.setAttribute('aria-label','ANJANA AI live avatar and chat');
+ const avatarColumn=document.createElement('div');avatarColumn.id='avatarColumn';
+ const conversationColumn=document.createElement('section');conversationColumn.id='conversationColumn';conversationColumn.setAttribute('aria-label','AI conversation');
+ const heading=document.createElement('div');heading.className='conversation-heading';
+ heading.innerHTML='<div><h2>ANJANA AI Assistant</h2><p>සිංහල සහ English • Hybrid Intelligence</p></div><span class="pill">● LIVE READY</span>';
+ main.insertBefore(workspace,main.firstChild);workspace.append(avatarColumn,conversationColumn);
+ avatarColumn.append(hero,avatarPanel);conversationColumn.append(heading,chat,quick,composer);
+ const frame=document.getElementById('avatarFrame');const videoWrap=avatarPanel.querySelector('.live-avatar-video-wrap');
+ if(frame&&videoWrap)frame.append(videoWrap);
+})();
+</script>
+
+<script type="module" src="/app-v10.js?v=10.3.0"></script></body></html>
