@@ -108,6 +108,34 @@ function createApp() {
     return `${parsed.origin}${pathname}`;
   }
 
+  // Detect the old Render layout where OPENAI_* actually held Gemini-compatible settings.
+  // In that layout the real OpenAI key/model live in BACKUP_OPENAI_*.
+  function hasLegacyGeminiConfig() {
+    try {
+      const host = new URL(String(process.env.OPENAI_BASE_URL || '')).hostname.toLowerCase();
+      return host === 'generativelanguage.googleapis.com' || host.endsWith('.googleapis.com');
+    } catch { return false; }
+  }
+
+  function openAiConfig() {
+    const legacyGemini = hasLegacyGeminiConfig();
+    return {
+      apiKey: legacyGemini
+        ? (process.env.BACKUP_OPENAI_API_KEY || '')
+        : (process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY || ''),
+      baseUrl: legacyGemini
+        ? (process.env.BACKUP_OPENAI_BASE_URL || 'https://api.openai.com/v1')
+        : (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'),
+      model: legacyGemini
+        ? (process.env.BACKUP_OPENAI_MODEL || 'gpt-5.4-mini')
+        : (process.env.OPENAI_MODEL || process.env.BACKUP_OPENAI_MODEL || 'gpt-5.4-mini')
+    };
+  }
+
+  function hasGeminiCredentials() {
+    return Boolean(process.env.GEMINI_API_KEY || (hasLegacyGeminiConfig() && process.env.OPENAI_API_KEY));
+  }
+
   function redactProviderText(value) {
     return String(value || '')
       .replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,})/g, '[redacted]')
@@ -191,15 +219,11 @@ function createApp() {
   }
 
   async function openAiChat(message, language) {
-    // OpenAI is the preferred paid cloud engine. Keep credentials server-side.
-    // BACKUP_OPENAI_* remains a migration alias for older deployments.
-    const apiKey = process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY;
-    const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-    const model = process.env.OPENAI_MODEL || process.env.BACKUP_OPENAI_MODEL || 'gpt-4.1-mini';
+    // Prefer the new OPENAI_* layout. If an older Render service still stores
+    // Gemini in OPENAI_* and paid OpenAI in BACKUP_OPENAI_*, route each key correctly.
+    const config = openAiConfig();
     return openAiCompatibleChat(message, language, {
-      apiKey,
-      baseUrl,
-      model,
+      ...config,
       label: 'OpenAI', provider: 'openai'
     });
   }
@@ -209,9 +233,12 @@ function createApp() {
   }
 
   async function geminiChat(message, language) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Legacy Render compatibility: OPENAI_API_KEY may still contain the Gemini key
+    // when OPENAI_BASE_URL points to Google's OpenAI-compatible endpoint.
+    const legacyGemini = hasLegacyGeminiConfig();
+    const apiKey = process.env.GEMINI_API_KEY || (legacyGemini ? process.env.OPENAI_API_KEY : '');
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const model = process.env.GEMINI_MODEL || (legacyGemini ? process.env.OPENAI_MODEL : '') || 'gemini-3.8-flash';
     const system = language === 'si'
       ? 'ඔබ ANJANA AI ය. පැහැදිලි, නිවැරදි, ප්‍රයෝජනවත් සිංහලෙන් පිළිතුරු දෙන්න.'
       : 'You are ANJANA AI. Give clear, accurate and helpful English answers.';
@@ -240,7 +267,7 @@ function createApp() {
       console.warn('OpenAI unavailable; trying Gemini:', redactProviderText(error.message));
     }
 
-    if (process.env.GEMINI_API_KEY) {
+    if (hasGeminiCredentials()) {
       try {
         return await geminiChat(message, language);
       } catch (error) {
@@ -265,7 +292,7 @@ function createApp() {
 
   app.get('/api/health', (req, res) => {
     res.json({
-      status: 'ok', service: 'ANJANA AI', version: '10.2.6',
+      status: 'ok', service: 'ANJANA AI', version: '10.3.0',
       core: core.getStatus(),
       features: {
         authentication: true, hybridAi: true,
@@ -281,13 +308,14 @@ function createApp() {
     try {
       const ollama = await ai.status();
       res.json({
-        version: '10.2.6',
+        version: '10.3.0',
         provider: process.env.AI_PROVIDER || 'hybrid',
-        openaiModel: process.env.OPENAI_MODEL || process.env.BACKUP_OPENAI_MODEL || 'gpt-4.1-mini',
-        geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
-        openaiConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY),
+        openaiModel: openAiConfig().model,
+        geminiModel: process.env.GEMINI_MODEL || (hasLegacyGeminiConfig() ? process.env.OPENAI_MODEL : '') || 'gemini-3.8-flash',
+        geminiConfigured: hasGeminiCredentials(),
+        openaiConfigured: Boolean(openAiConfig().apiKey),
         ollama,
-        onlineReady: Boolean(process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.GEMINI_API_KEY)
+        onlineReady: Boolean(openAiConfig().apiKey || hasGeminiCredentials())
       });
     } catch (error) {
       res.status(503).json({ error: 'AI status unavailable' });
@@ -394,7 +422,7 @@ function createApp() {
       return res.status(503).json({
         error: 'AI providers are unavailable.',
         diagnostic,
-        hint: 'Render Environment හි OPENAI_API_KEY, OPENAI_BASE_URL=https://api.openai.com/v1 සහ OPENAI_MODEL=gpt-4.1-mini පරීක්ෂා කරන්න.'
+        hint: 'Render Environment හි OpenAI key/base URL/model පරීක්ෂා කරන්න. පැරණි Gemini OPENAI_* configuration එකක් තිබේ නම් V10.3.0 එය හඳුනාගෙන BACKUP_OPENAI_* OpenAI key එක භාවිත කරයි.'
       });
     }
   });
