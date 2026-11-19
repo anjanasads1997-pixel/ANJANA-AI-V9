@@ -86,7 +86,7 @@ For Render, verify `OPENAI_API_KEY` contains the actual OpenAI API key, `OPENAI_
 - LiveAvatar provider account permissions and avatar eligibility must be verified in the LiveAvatar account; code cannot grant them.
 
 
-## V10.2.7 reliability and diagnostics
+## V10.2.8 reliability and diagnostics
 
 - OpenAI requests retry once for transient HTTP 408/429/500/502/503/504 responses.
 - Provider errors include a bounded, redacted HTTP status, provider code/message and request ID where supplied.
@@ -104,10 +104,18 @@ Recommended Render variables:
 - `LIVEAVATAR_SANDBOX=false` only when the account and selected avatar are eligible for live mode.
 
 
-## V10.2.7 — Render legacy environment compatibility
+## V10.2.8 — Render legacy environment compatibility
 
 The supplied Render screenshots showed the older environment layout still in use: `OPENAI_BASE_URL` points to Google's `generativelanguage.googleapis.com`, `OPENAI_API_KEY` contains the Gemini key, while the paid OpenAI key/model are stored under `BACKUP_OPENAI_*`. Earlier V10.2.6 code incorrectly preferred `OPENAI_API_KEY` for OpenAI and therefore sent the Gemini credential/model to the wrong provider.
 
-V10.2.7 detects that exact legacy Google endpoint. In legacy mode it uses `BACKUP_OPENAI_API_KEY`, `BACKUP_OPENAI_BASE_URL`, and `BACKUP_OPENAI_MODEL` for OpenAI, and uses `OPENAI_API_KEY` plus `OPENAI_MODEL` for Gemini. If `GEMINI_API_KEY` is set, it takes priority for Gemini. `AI_PROVIDER=cloud` continues to behave as hybrid routing (OpenAI → Gemini → Ollama).
+V10.2.8 detects that exact legacy Google endpoint. In legacy mode it uses `BACKUP_OPENAI_API_KEY`, `BACKUP_OPENAI_BASE_URL`, and `BACKUP_OPENAI_MODEL` for OpenAI, and uses `OPENAI_API_KEY` plus `OPENAI_MODEL` for Gemini. If `GEMINI_API_KEY` is set, it takes priority for Gemini. `AI_PROVIDER=cloud` continues to behave as hybrid routing (OpenAI → Gemini → Ollama).
 
-Recommended long-term cleanup (optional after V10.2.7 is deployed): set `OPENAI_API_KEY` to the actual OpenAI key, `OPENAI_BASE_URL=https://api.openai.com/v1`, `OPENAI_MODEL=gpt-5.4-mini`; move the Google key to `GEMINI_API_KEY`, set `GEMINI_MODEL=gemini-3.8-flash`, and remove the old Gemini values from `OPENAI_*`. Never paste keys into chat, screenshots, or GitHub.
+Recommended long-term cleanup (optional after V10.2.8 is deployed): set `OPENAI_API_KEY` to the actual OpenAI key, `OPENAI_BASE_URL=https://api.openai.com/v1`, `OPENAI_MODEL=gpt-5.4-mini`; move the Google key to `GEMINI_API_KEY`, set `GEMINI_MODEL=gemini-3.8-flash`, and remove the old Gemini values from `OPENAI_*`. Never paste keys into chat, screenshots, or GitHub.
+
+
+## V10.3.0 — Live Avatar Workspace
+- Reworked the main interface into a responsive avatar-and-chat workspace inspired by the supplied reference.
+- The existing portrait remains the safe fallback until a real LiveAvatar stream is connected.
+- The LiveAvatar video is displayed in the main avatar stage after session start; existing start/stop controls and API routes are preserved.
+- Chat, quick prompts, and message composer are grouped beside the avatar on desktop and stacked on mobile.
+- Real streamed avatar output still requires valid server-side `LIVEAVATAR_API_KEY` and an account-owned `LIVEAVATAR_AVATAR_ID` (or `ANJANA_LIVEAVATAR_ID`). TTS requires the configured server-side TTS key.

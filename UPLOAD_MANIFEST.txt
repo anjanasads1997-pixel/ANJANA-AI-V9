@@ -1,9 +1,15 @@
-ANJANA AI V10.2.7 — CHANGED FILES ONLY
+ANJANA AI V10.2.8 — COMPLETE PROJECT PACKAGE
 
-Upload each file to the exact same path in the existing GitHub repository. Do not delete other project files.
+මෙය changed-files-only ZIP එකක් නොවේ. සම්පූර්ණ project එකේ සියලුම අවශ්‍ය ගොනු අඩංගු වේ.
 
-Main fix: compatibility with the legacy Render environment shown in the supplied screenshots. The previous V10.2.6 code sent the Gemini key/model to the OpenAI endpoint when OPENAI_BASE_URL still pointed to Google. V10.2.7 routes BACKUP_OPENAI_* to OpenAI and the legacy OPENAI_* Google settings to Gemini.
+GitHub repository root එකට extract කර upload කරන්න. පැරණි project files සමඟ merge කරන්න; GitHub හි වෙනත් නොඅදාළ files මකා නොදමන්න.
 
-Files: package.json, .env.example, src/app.js, src/server.js, public/index.html, public/sw.js, tests/v10-integration.test.js, README.md, docs/V10.2.7-CHANGELOG-SI.md, UPLOAD_MANIFEST.txt.
+ඇතුළත් ප්‍රධාන කොටස්:
+- src/app.js, src/server.js
+- src/auth/*
+- src/core/*
+- public/index.html, public/app-v10.js, public/app.js, public/sw.js, public/manifest.webmanifest, public/avatar-preview.png
+- package.json, .env.example
+- tests/*, docs/*, scripts/*, android/*
 
-After upload, wait for Render deployment to complete. Keep existing Render variables for this compatibility release. Never put actual API keys into GitHub.
+Render Environment තුළ දැනට ඇති API secrets වෙනස් කිරීම/මකා දැමීම අවශ්‍ය නැත; මෙම release එක legacy Google endpoint + BACKUP_OPENAI_* layout එකට අනුකූලය.
