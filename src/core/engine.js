@@ -4,7 +4,7 @@
 class AnjanaCore {
   constructor() {
     this.name = 'ANJANA AI';
-    this.version = '11.0.3';
+    this.version = '11.1.0';
     this.languages = ['si', 'en'];
     this.modes = ['offline', 'hybrid', 'online'];
     this.status = 'ready';
