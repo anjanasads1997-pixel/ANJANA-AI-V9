@@ -1,5 +1,32 @@
 
+
+// UI bootstrap is kept in this same-origin module because the server uses a strict CSP.
+function initialiseAccountDialog(){
+ const dialog=$('#accountDialog'),account=$('#accountButton'),close=$('#closeAccount');
+ const panel=$('#authPanel'),target=$('#accountContent');
+ if(panel&&target&&!target.contains(panel))target.appendChild(panel);
+ if(account&&dialog&&!account.dataset.bound){account.dataset.bound='1';account.addEventListener('click',()=>{if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');});}
+ if(close&&dialog&&!close.dataset.bound){close.dataset.bound='1';close.addEventListener('click',()=>{if(typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');});}
+ if(dialog&&!dialog.dataset.bound){dialog.dataset.bound='1';dialog.addEventListener('click',event=>{if(event.target===dialog&&typeof dialog.close==='function')dialog.close();});}
+}
+function initialiseAssistantLayout(){
+ const main=document.querySelector('main');if(!main||$('#assistantWorkspace'))return;
+ const hero=main.querySelector(':scope > .hero'),avatarPanel=$('#liveAvatarPanel'),chat=$('#chat'),quick=main.querySelector(':scope > .quick'),composer=$('#chatComposer');
+ if(!hero||!avatarPanel||!chat||!quick||!composer)return;
+ const workspace=document.createElement('section');workspace.id='assistantWorkspace';workspace.setAttribute('aria-label','ANJANA AI live avatar and chat');
+ const avatarColumn=document.createElement('div');avatarColumn.id='avatarColumn';
+ const conversationColumn=document.createElement('section');conversationColumn.id='conversationColumn';conversationColumn.setAttribute('aria-label','AI conversation');
+ const heading=document.createElement('div');heading.className='conversation-heading';
+ heading.innerHTML='<div><h2>ANJANA AI Assistant</h2><p>සිංහල සහ English • Hybrid Intelligence</p></div><span class="pill">● READY TO TALK</span>';
+ main.insertBefore(workspace,main.firstChild);workspace.append(avatarColumn,conversationColumn);avatarColumn.append(hero,avatarPanel);conversationColumn.append(heading,chat,quick,composer);
+ const frame=$('#avatarFrame'),wrap=avatarPanel.querySelector('.live-avatar-video-wrap');if(frame&&wrap)frame.append(wrap);
+}
+
 const $=s=>document.querySelector(s), chat=$('#chat'), box=$('#prompt');
+function setVoiceLiveStatus(message){const a=$('#voiceLiveStatus');if(a)a.textContent=message;const b=$('#voiceStatus');if(b)b.textContent=message;}
+initialiseAccountDialog();
+initialiseAssistantLayout();
+
 let mode='auto', engine=null, wasmEngine=null, engineType='', lastReply='', history=[];
 const STORE='anjana_ai_v11_history_v1';
 const SESSIONS_STORE='anjana_ai_v11_sessions_v1';
@@ -47,7 +74,7 @@ async function testOpenAIConnection(){
   const live=Object.values(data.checks||{}).some(x=>x.connected);
   if($('#connection'))$('#connection').textContent=live?'● AI ENGINE CONNECTED':'● AI ENGINE UNAVAILABLE';
  }catch(error){
-  if(status)status.textContent='AI diagnostic failed: '+String(error.message||error).slice(0,700)+' (Login වී ඇති බව පරීක්ෂා කරන්න.)';
+  if(status)status.textContent='AI diagnostic failed: '+String(error.message||error).slice(0,700);
   await refreshAIStatus(false);
  }finally{if(button)button.disabled=false;}
 }
@@ -287,7 +314,7 @@ async function answer(q){
    try{data=raw?JSON.parse(raw):{};}catch(e){throw new Error('Backend එක JSON නොවන ප්‍රතිචාරයක් ලබා දුන්නා (HTTP '+res.status+').');}
    if(!res.ok){
     const serverMessage=data.error?.message||data.message||data.error||res.statusText;
-    const failure=new Error(res.status===401?'Login අවශ්‍යයි. ANJANA AI ගිණුමට නැවත Login වන්න.':res.status===403?'මෙම ක්‍රියාවට අවසර නැත.':('Backend HTTP '+res.status+': '+String(serverMessage).slice(0,240)));
+    const failure=new Error(res.status===403?'මෙම ක්‍රියාවට අවසර නැත.':('Backend HTTP '+res.status+': '+String(serverMessage).slice(0,240)));
     failure.status=res.status;
     throw failure;
    }
@@ -298,7 +325,7 @@ async function answer(q){
    return content.trim();
   } catch(err) {
    const detail=err.name==='AbortError'?'Backend ප්‍රතිචාරය ප්‍රමාද විය.':(err.message||'Network error');
-   if(mode!=='auto'||[401,403].includes(err.status)) throw new Error(detail+' (ගිණුම් Login / අවසර පරීක්ෂා කරන්න)');
+   if(mode!=='auto'||err.status===403) throw new Error(detail);
    $('#connection').textContent='● HYBRID: TRYING OFFLINE';
    $('#liveStatus').textContent='Online සම්බන්ධතාවය අසාර්ථකයි: '+detail+' — Offline model එක උත්සාහ කරයි.';
   } finally {clearTimeout(timer);}
@@ -351,9 +378,13 @@ async function send(){
   reply='සම්බන්ධතාවයේ දෝෂයක්: '+(e?.message||'නොදන්නා දෝෂයක්');
   node.textContent=reply;history.push({role:'assistant',content:reply});save();
  }finally{sending=false;if(sendButton)sendButton.disabled=false;}
- if(reply&&!reply.startsWith('සම්බන්ධතාවයේ දෝෂයක්:')){speakReply(reply).catch(e=>console.warn('Avatar speech unavailable:',e));const bar=document.createElement('div');bar.className='row';bar.style.marginTop='8px';bar.style.gap='8px';const up=document.createElement('button');up.type='button';up.className='btn';up.textContent='👍 හොඳ පිළිතුරක්';const down=document.createElement('button');down.type='button';down.className='btn';down.textContent='👎 නිවැරදි කළ යුතුයි';const status=document.createElement('span');status.className='hint';status.setAttribute('aria-live','polite');up.onclick=()=>recordAnswerFeedback(q,reply,'up','',status,up,down);down.onclick=()=>{const correction=prompt('මෙම පිළිතුරේ නිවැරදි කළ යුතු කරුණ කුමක්ද? (අවශ්‍ය නම් හිස්ව තබන්න)')||'';recordAnswerFeedback(q,reply,'down',correction,status,up,down);};bar.append(up,down,status);node.append(bar);}chat.scrollTop=chat.scrollHeight;}
+ if(reply&&!reply.startsWith('සම්බන්ධතාවයේ දෝෂයක්:')){try{await speakReply(reply);}catch(e){console.warn('Avatar speech unavailable:',e);}const bar=document.createElement('div');bar.className='row';bar.style.marginTop='8px';bar.style.gap='8px';const up=document.createElement('button');up.type='button';up.className='btn';up.textContent='👍 හොඳ පිළිතුරක්';const down=document.createElement('button');down.type='button';down.className='btn';down.textContent='👎 නිවැරදි කළ යුතුයි';const status=document.createElement('span');status.className='hint';status.setAttribute('aria-live','polite');up.onclick=()=>recordAnswerFeedback(q,reply,'up','',status,up,down);down.onclick=()=>{const correction=prompt('මෙම පිළිතුරේ නිවැරදි කළ යුතු කරුණ කුමක්ද? (අවශ්‍ය නම් හිස්ව තබන්න)')||'';recordAnswerFeedback(q,reply,'down',correction,status,up,down);};bar.append(up,down,status);node.append(bar);}chat.scrollTop=chat.scrollHeight;}
 $('#send').onclick=send;box.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
-$('#startLiveAvatar')?.addEventListener('click',()=>startLiveAvatar().catch(err=>console.error('LiveAvatar start:',err)));
+$('#startLiveAvatar')?.addEventListener('click',()=>{
+ // Start microphone synchronously inside the user gesture, then connect the live avatar.
+ startLiveVoice();
+ startLiveAvatar().catch(err=>{console.error('LiveAvatar start:',err);setVoiceLiveStatus('Avatar සම්බන්ධතාවය අසාර්ථකයි. Browser voice fallback භාවිත කළ හැක.');});
+});
 $('#stopLiveAvatar')?.addEventListener('click',()=>stopLiveAvatar());
 
 document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{box.value=b.dataset.q;send();});
@@ -455,32 +486,34 @@ async function speakReply(text){
    return;
   }catch(err){console.warn('LiveAvatar TTS failed; using browser voice:',err);}
  }
- speakText(text);
+ await speakText(text);
 }
 
 function speakText(text){
- if(!text||!('speechSynthesis'in window))return;
+ if(!text||!('speechSynthesis'in window))return Promise.resolve();
  speechSynthesis.cancel();
  if(lipFallbackTimer){clearInterval(lipFallbackTimer);lipFallbackTimer=null;}
  lipBoundarySeen=false;lipFallbackIndex=0;
- const u=new SpeechSynthesisUtterance(text);
- u.lang=$('#assistantLanguage')?.value||(/[අ-෴]/.test(text)?'si-LK':'en-US');u.rate=0.94;u.pitch=1.0;
- u.onstart=()=>{
-  setAvatarSpeaking(true);
-  lipFallbackTimer=setInterval(()=>{
-   if(lipBoundarySeen)return;
-   setMouthPose(classifyViseme(text,lipFallbackIndex));
-   lipFallbackIndex=(lipFallbackIndex+1)%Math.max(1,text.length);
-  },115);
- };
- u.onboundary=(ev)=>{
-  lipBoundarySeen=true;
-  if(lipFallbackTimer){clearInterval(lipFallbackTimer);lipFallbackTimer=null;}
-  setMouthPose(classifyViseme(text,Number.isFinite(ev.charIndex)?ev.charIndex:0));
- };
- u.onend=()=>setAvatarSpeaking(false);
- u.onerror=()=>setAvatarSpeaking(false);
- speechSynthesis.speak(u);
+ return new Promise(resolve=>{
+  const u=new SpeechSynthesisUtterance(text);let finished=false;
+  const finish=()=>{if(finished)return;finished=true;setAvatarSpeaking(false);resolve();};
+  u.lang=$('#assistantLanguage')?.value||(/[අ-෴]/.test(text)?'si-LK':'en-US');u.rate=0.94;u.pitch=1.0;
+  u.onstart=()=>{
+   setAvatarSpeaking(true);
+   lipFallbackTimer=setInterval(()=>{
+    if(lipBoundarySeen)return;
+    setMouthPose(classifyViseme(text,lipFallbackIndex));
+    lipFallbackIndex=(lipFallbackIndex+1)%Math.max(1,text.length);
+   },115);
+  };
+  u.onboundary=(ev)=>{
+   lipBoundarySeen=true;
+   if(lipFallbackTimer){clearInterval(lipFallbackTimer);lipFallbackTimer=null;}
+   setMouthPose(classifyViseme(text,Number.isFinite(ev.charIndex)?ev.charIndex:0));
+  };
+  u.onend=finish;u.onerror=finish;
+  speechSynthesis.speak(u);
+ });
 }
 
 let azureTtsSettings={key:'',region:'',locale:'en-US',voice:''};
@@ -614,7 +647,15 @@ $('#stopSpeak').onclick=()=>{
  activeAzureSynth=null;activeAzurePlayer=null;setAvatarSpeaking(false);
  ttsStatus('Voice playback stopped.');
 };
-$('#voiceIn').onclick=()=>{let SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){$('#voiceStatus').textContent='මෙම browser එකේ Voice Input සහාය නැත.';return;}let r=new SR();r.lang='si-LK';r.onresult=e=>{box.value=e.results[0][0].transcript;};r.onerror=e=>$('#voiceStatus').textContent='Voice error: '+e.error;r.start();$('#voiceStatus').textContent='සවන් දෙමින්…';};
+$('#voiceIn').onclick=()=>{
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){setVoiceLiveStatus('මෙම browser එකේ Voice Input සහාය නැත. Text box එක භාවිත කරන්න.');return;}
+ const r=new SR();r.lang=$('#assistantLanguage')?.value||'si-LK';r.interimResults=false;r.maxAlternatives=1;
+ r.onresult=e=>{const spoken=e.results?.[0]?.[0]?.transcript?.trim();if(!spoken)return;box.value=spoken;setVoiceLiveStatus('ඔබ පැවසූ දේ ලැබුණා. ANJANA AI පිළිතුරු සකස් කරමින්…');send();};
+ r.onerror=e=>setVoiceLiveStatus('Voice input error: '+e.error);
+ r.onend=()=>{const el=$('#voiceLiveStatus');if(el&&el.textContent.startsWith('සවන් දෙමින්'))setVoiceLiveStatus('කථනය හඳුනාගැනීම අවසන්.');};
+ try{r.start();setVoiceLiveStatus('සවන් දෙමින්… දැන් කතා කරන්න.');}catch(e){setVoiceLiveStatus('Microphone ආරම්භ කළ නොහැක: '+e.message);}
+};
 restore();
 
 // Consent-based voice dataset capture. Recording stays in memory until user downloads it.
@@ -663,18 +704,21 @@ function startLiveVoice(){
   const transcript=result[0].transcript.trim();
   if(!transcript)return;
   liveVoiceBusy=true;
+  try{rec.stop();}catch(e){}
   realtimeStatus('ඔබ: '+transcript+' — පිළිතුර සකස් කරමින්…');
   box.value=transcript;
   try{
-   // send() updates chat and history; then speak the completed reply.
+   // send() waits for avatar/browser speech before listening again.
    await send();
-   if(lastReply) await speakLastReply();
    realtimeStatus('සවන්දෙමින්… නැවත කතා කරන්න.');
   }catch(err){realtimeStatus('දෝෂය: '+err.message);}
-  finally{liveVoiceBusy=false;}
+  finally{
+   liveVoiceBusy=false;
+   if(liveVoiceOn){try{rec.start();}catch(e){realtimeStatus('නැවත සවන් දීම ආරම්භ කළ නොහැක: '+e.message);}}
+  }
  };
- rec.onerror=(event)=>realtimeStatus('Voice input error: '+event.error);
- rec.onend=()=>{if(liveVoiceOn){try{rec.start();}catch(e){}}else realtimeStatus('Live voice නවතා ඇත.');};
+ rec.onerror=(event)=>{if(event.error!=='aborted')realtimeStatus('Voice input error: '+event.error);};
+ rec.onend=()=>{if(liveVoiceOn&&!liveVoiceBusy){try{rec.start();}catch(e){}}else if(!liveVoiceOn)realtimeStatus('Live voice නවතා ඇත.');};
  try{rec.start();}catch(e){liveVoiceOn=false;realtimeStatus('Microphone ආරම්භ කළ නොහැක: '+e.message);}
 }
 function stopLiveVoice(){
