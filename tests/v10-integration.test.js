@@ -10,7 +10,7 @@ test('V10 frontend uses the existing authenticated chat API', () => {
   const html = read('public/index.html');
   const js = read('public/app-v10.js');
   assert.ok(html.includes('value="/api/chat"'));
-  assert.ok(html.includes('app-v10.js?v=11.0.5')); 
+  assert.ok(html.includes('app-v10.js?v=11.1.0')); 
   assert.ok(js.includes("credentials:'same-origin'"));
   assert.ok(js.includes('JSON.stringify({message:q,conversationId:activeSessionId})'));
 });
@@ -35,7 +35,7 @@ test('V11.0 hybrid provider order is Gemini, OpenAI backup, then Ollama', () => 
 
 test('health endpoint reports V11.0.5 and provider readiness without exposing secrets', () => {
   const app = read('src/app.js');
-  assert.ok(app.includes("version: '11.0.5'"));
+  assert.ok(app.includes("version: '11.1.0'"));
   assert.ok(app.includes('openaiConfigured: Boolean(openAiConfig().apiKey)'));
 });
 
@@ -55,8 +55,8 @@ test('V10.3.0 allows WebAssembly and cache-busts the mobile client', () => {
   const html = read('public/index.html');
   const sw = read('public/sw.js');
   assert.ok(app.includes("'wasm-unsafe-eval'"));
-  assert.ok(html.includes('app-v10.js?v=11.0.5'));
-  assert.ok(sw.includes('anjana-ai-v11.0.5-shell-v1'));
+  assert.ok(html.includes('app-v10.js?v=11.1.0'));
+  assert.ok(sw.includes('anjana-ai-v11.1.0-shell-v1'));
 });
 
 test('V10.3.0 defaults LiveAvatar to live mode and explains sandbox rejection', () => {
