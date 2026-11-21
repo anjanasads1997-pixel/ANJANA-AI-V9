@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 const AuthManager = require('./auth/auth-manager');
 const SessionManager = require('./auth/session-manager');
@@ -89,6 +90,14 @@ function createApp() {
     standardHeaders: true,
     legacyHeaders: false
   });
+  // Guest traffic is deliberately more restricted than signed-in traffic.
+  const guestChatLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 8,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Guest request limit reached. Please wait or sign in.' }
+  });
 
   function requireAuth(req, res, next) {
     try {
@@ -102,6 +111,42 @@ function createApp() {
     } catch (error) {
       console.error('Authentication error:', error.message);
       return res.status(500).json({ error: 'Authentication service unavailable' });
+    }
+  }
+
+  // Public assistant routes may use a short-lived anonymous identity.
+  // Guest identities are isolated from account data and cannot access research/tools.
+  function optionalAssistantUser(req, res, next) {
+    try {
+      const token = req.cookies?.anjana_session;
+      const session = sessions.get(token);
+      if (session) {
+        const user = users.findById(session.userId);
+        if (user) {
+          req.user = { id: user.id, username: user.username };
+          return next();
+        }
+      }
+
+      const existingGuestId = String(req.cookies?.anjana_guest || '');
+      const guestId = /^[0-9a-f-]{36}$/i.test(existingGuestId)
+        ? existingGuestId
+        : crypto.randomUUID();
+
+      if (guestId !== existingGuestId) {
+        res.cookie('anjana_guest', guestId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+      }
+      req.user = { id: `guest:${guestId}`, username: 'Guest' };
+      return guestChatLimiter(req, res, next);
+    } catch (error) {
+      console.error('Assistant identity error:', error.message);
+      return res.status(500).json({ error: 'Assistant identity service unavailable' });
     }
   }
 
@@ -327,7 +372,7 @@ function createApp() {
   const toolRegistry = new ToolRegistry({
     permissionManager,
     getRuntimeStatus: () => ({
-      version: '11.0.3',
+      version: '11.1.0',
       providers: {
         geminiConfigured: hasGeminiCredentials(),
         openaiConfigured: Boolean(openAiConfig().apiKey),
@@ -344,7 +389,7 @@ function createApp() {
 
   app.get('/api/health', (req, res) => {
     res.json({
-      status: 'ok', service: 'ANJANA AI', version: '11.0.3',
+      status: 'ok', service: 'ANJANA AI', version: '11.1.0',
       core: core.getStatus(),
       brain: brain.getStatus(),
       features: {
@@ -411,7 +456,7 @@ function createApp() {
     try {
       const ollama = await ai.status();
       res.json({
-        version: '11.0.3',
+        version: '11.1.0',
         provider: process.env.AI_PROVIDER || 'hybrid',
         openaiModel: openAiConfig().model,
         geminiModel: process.env.GEMINI_MODEL || (hasLegacyGeminiConfig() ? process.env.OPENAI_MODEL : '') || 'gemini-3.8-flash',
@@ -428,7 +473,7 @@ function createApp() {
     }
   });
 
-  app.post('/api/ai/diagnostics', requireAuth, chatLimiter, async (req, res) => {
+  app.post('/api/ai/diagnostics', optionalAssistantUser, chatLimiter, async (req, res) => {
     const checks = {};
     const safeCheck = async (name, configured, operation) => {
       if (!configured) {
@@ -467,7 +512,7 @@ function createApp() {
     return res.json({ ok: connected.length > 0 || checks.ollama.connected, checks, preferredOrder: ['gemini', 'openai', 'ollama'] });
   });
 
-  app.post('/api/ai/test', requireAuth, chatLimiter, async (req, res) => {
+  app.post('/api/ai/test', optionalAssistantUser, chatLimiter, async (req, res) => {
     try {
       const result = await openAiChat('Reply with exactly: ANJANA AI OpenAI connection OK.', 'en');
       return res.json({ ok: true, provider: result.provider, model: result.model, reply: result.reply });
@@ -494,7 +539,7 @@ function createApp() {
     });
   });
 
-  app.post('/api/avatar/session', requireAuth, avatarLimiter, async (req, res) => {
+  app.post('/api/avatar/session', optionalAssistantUser, avatarLimiter, async (req, res) => {
     const apiKey = String(process.env.LIVEAVATAR_API_KEY || '').trim();
     const avatarId = String(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID || '').trim();
     const avatarMode = String(process.env.LIVEAVATAR_MODE || 'LITE').trim().toUpperCase();
@@ -552,7 +597,7 @@ function createApp() {
     }
   });
 
-  app.post('/api/chat', requireAuth, chatLimiter, async (req, res) => {
+  app.post('/api/chat', optionalAssistantUser, chatLimiter, async (req, res) => {
     try {
       const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
       const conversationId = typeof req.body?.conversationId === 'string' ? req.body.conversationId : '';
@@ -581,7 +626,7 @@ function createApp() {
     }
   });
 
-  app.post('/api/tts', requireAuth, chatLimiter, async (req, res) => {
+  app.post('/api/tts', optionalAssistantUser, chatLimiter, async (req, res) => {
     const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
     if (!text || text.length > 3500) return res.status(400).json({ error: 'Text must contain 1-3500 characters.' });
     const openAiBaseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
