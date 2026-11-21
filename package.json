@@ -1,8 +1,8 @@
 {
   "name": "anjana-ai-v11",
-  "version": "11.0.5",
+  "version": "11.1.0",
   "private": true,
-  "description": "ANJANA AI guest-first voice conversation with live avatar",
+  "description": "ANJANA AI bilingual guest-first voice assistant with isolated guest sessions",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
