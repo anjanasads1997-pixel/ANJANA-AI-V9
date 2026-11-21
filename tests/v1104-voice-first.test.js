@@ -20,7 +20,7 @@ test('microphone input automatically sends recognized speech and assistant speak
  assert.ok(js.includes('speechSynthesis.speak(u)'));
 });
 test('account modal and responsive layout bootstrap run from CSP-allowed external module',()=>{
- assert.ok(html.includes('<script src="/app-v10.js?v=11.1.0" type="module"></script>'));
+ assert.ok(html.includes('<script src="/app-v10.js?v=11.1.1" type="module"></script>'));
  assert.ok(!/<script>/.test(html));
  assert.ok(js.includes('dialog.showModal()'));
  assert.ok(js.includes('initialiseAssistantLayout()'));

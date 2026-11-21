@@ -25,5 +25,5 @@ test('existing account, offline engine, and AI controls remain available',()=>{
 test('V11 starts a clean chat-history namespace without deleting V10 history',()=>{
  assert.ok(js.includes("const STORE='anjana_ai_v11_history_v1'"));
  assert.ok(!js.includes("const STORE='anjana_ai_full_history_v2'"));
- assert.ok(html.includes('app-v10.js?v=11.1.0'));
+ assert.ok(html.includes('app-v10.js?v=11.1.1'));
 });
