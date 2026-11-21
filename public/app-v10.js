@@ -325,7 +325,8 @@ async function answer(q){
    return content.trim();
   } catch(err) {
    const detail=err.name==='AbortError'?'Backend ප්‍රතිචාරය ප්‍රමාද විය.':(err.message||'Network error');
-   if(mode!=='auto'||err.status===403) throw new Error(detail);
+   if([401,403].includes(err.status)) throw new Error('Login අවශ්‍යයි. ANJANA AI ගිණුමට නැවත Login වන්න.');
+   if(mode!=='auto') throw new Error(detail);
    $('#connection').textContent='● HYBRID: TRYING OFFLINE';
    $('#liveStatus').textContent='Online සම්බන්ධතාවය අසාර්ථකයි: '+detail+' — Offline model එක උත්සාහ කරයි.';
   } finally {clearTimeout(timer);}
