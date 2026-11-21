@@ -12,8 +12,13 @@ const UserStore = require('./auth/store');
 const createAuthRouter = require('./auth/auth-routes');
 const AnjanaCore = require('./core/engine');
 const OllamaClient = require('./core/ollama-client');
+const ContextStore = require('./core/brain/context-store');
+const PermissionManager = require('./core/brain/permission-manager');
+const ToolRegistry = require('./core/brain/tool-registry');
+const UnifiedBrain = require('./core/brain/unified-brain');
 
 const LIVEAVATAR_API = 'https://api.liveavatar.com';
+const TAVILY_API = 'https://api.tavily.com/search';
 
 function createApp() {
   const app = express();
@@ -30,10 +35,17 @@ function createApp() {
   });
   const users = new UserStore(path.join(dataDir, 'users.json'));
   const core = new AnjanaCore();
+  const contextStore = new ContextStore({
+    filePath: path.join(dataDir, 'brain-context.json'),
+    encryptionKey: process.env.BRAIN_ENCRYPTION_KEY,
+    maxConversations: Number(process.env.BRAIN_MAX_CONVERSATIONS || 40),
+    maxMessages: Number(process.env.BRAIN_MAX_MESSAGES || 24)
+  });
+  const permissionManager = new PermissionManager();
   const ai = new OllamaClient({
     baseUrl: process.env.OLLAMA_BASE_URL,
     model: process.env.OLLAMA_MODEL,
-    timeoutMs: Number(process.env.AI_TIMEOUT_MS || 12000)
+    timeoutMs: Number(process.env.AI_TIMEOUT_MS || 45000)
   });
 
   app.disable('x-powered-by');
@@ -144,7 +156,7 @@ function createApp() {
       .slice(0, 320);
   }
 
-  async function openAiCompatibleChat(message, language, config) {
+  async function openAiCompatibleChat(message, language, config, context = []) {
     const apiKey = String(config.apiKey || '').trim();
     if (!apiKey) throw new Error(`${config.label || 'OpenAI-compatible'} API key is not configured`);
     const baseUrl = normalizeBaseUrl(config.baseUrl);
@@ -166,11 +178,13 @@ function createApp() {
           signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS || 45000)),
           body: JSON.stringify({
             model,
-            temperature: 0.7,
             messages: [
               { role: 'system', content: language === 'si'
                 ? 'ඔබ ANJANA AI ය. පැහැදිලි, ප්‍රයෝජනවත් සිංහලෙන් පිළිතුරු දෙන්න. අවශ්‍ය විට ඉංග්‍රීසි තාක්ෂණික පද භාවිත කරන්න.'
                 : 'You are ANJANA AI. Give clear, helpful answers in English.' },
+              ...context.slice(-12).filter(item => ['user', 'assistant'].includes(item.role)).map(item => ({
+                role: item.role, content: String(item.content).slice(0, 8000)
+              })),
               { role: 'user', content: message }
             ]
           })
@@ -218,21 +232,21 @@ function createApp() {
     throw lastError || new Error('OpenAI request failed');
   }
 
-  async function openAiChat(message, language) {
+  async function openAiChat(message, language, context = []) {
     // Prefer the new OPENAI_* layout. If an older Render service still stores
     // Gemini in OPENAI_* and paid OpenAI in BACKUP_OPENAI_*, route each key correctly.
     const config = openAiConfig();
     return openAiCompatibleChat(message, language, {
       ...config,
       label: 'OpenAI', provider: 'openai'
-    });
+    }, context);
   }
 
   async function primaryCloudChat(message, language) {
-    return openAiChat(message, language);
+    return geminiChat(message, language);
   }
 
-  async function geminiChat(message, language) {
+  async function geminiChat(message, language, context = []) {
     // Legacy Render compatibility: OPENAI_API_KEY may still contain the Gemini key
     // when OPENAI_BASE_URL points to Google's OpenAI-compatible endpoint.
     const legacyGemini = hasLegacyGeminiConfig();
@@ -243,8 +257,18 @@ function createApp() {
       ? 'ඔබ ANJANA AI ය. පැහැදිලි, නිවැරදි, ප්‍රයෝජනවත් සිංහලෙන් පිළිතුරු දෙන්න.'
       : 'You are ANJANA AI. Give clear, accurate and helpful English answers.';
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(30000),
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: message }] }], generationConfig: { temperature: 0.7 } })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS || 45000)),
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [
+          ...context.slice(-12).filter(item => ['user', 'assistant'].includes(item.role)).map(item => ({
+            role: item.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: String(item.content).slice(0, 8000) }]
+          })),
+          { role: 'user', parts: [{ text: message }] }
+        ],
+        generationConfig: { temperature: 0.7 }
+      })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error?.message || `Gemini request failed (${response.status})`);
@@ -253,33 +277,43 @@ function createApp() {
     return { reply, model, provider: 'gemini' };
   }
 
-  async function hybridChat(message, language) {
-    const provider = String(process.env.AI_PROVIDER || 'hybrid').trim().toLowerCase();
-    if (provider === 'gemini') return geminiChat(message, language);
-    if (provider === 'openai') return openAiChat(message, language);
-    if (provider === 'ollama' || provider === 'local') return { ...(await ai.chat(message)), provider: 'ollama' };
+  async function hybridChat(message, language, context = []) {
+    const configuredProvider = String(
+      process.env.AI_PROVIDER || process.env.AI_MODE || 'hybrid'
+    ).trim().toLowerCase();
+    const provider = ['cloud', 'online'].includes(configuredProvider)
+      ? 'hybrid'
+      : configuredProvider;
 
-    const failures = [];
-    try {
-      return await openAiChat(message, language);
-    } catch (error) {
-      failures.push(`OpenAI: ${redactProviderText(error.message)}`);
-      console.warn('OpenAI unavailable; trying Gemini:', redactProviderText(error.message));
+    if (provider === 'gemini') return geminiChat(message, language, context);
+    if (provider === 'openai') return openAiChat(message, language, context);
+    if (['ollama', 'local', 'offline'].includes(provider)) {
+      return { ...(await ai.chat(message, context)), provider: 'ollama' };
     }
 
+    const failures = [];
+
+    // V11.0 default cloud priority: Gemini first, OpenAI backup, then local Ollama.
     if (hasGeminiCredentials()) {
       try {
-        return await geminiChat(message, language);
+        return await geminiChat(message, language, context);
       } catch (error) {
         failures.push(`Gemini: ${redactProviderText(error.message)}`);
-        console.warn('Gemini unavailable; trying local Ollama:', redactProviderText(error.message));
+        console.warn('Gemini unavailable; trying OpenAI backup:', redactProviderText(error.message));
       }
     } else {
       failures.push('Gemini: GEMINI_API_KEY is not configured');
     }
 
     try {
-      return { ...(await ai.chat(message)), provider: 'ollama' };
+      return await openAiChat(message, language, context);
+    } catch (error) {
+      failures.push(`OpenAI: ${redactProviderText(error.message)}`);
+      console.warn('OpenAI backup unavailable; trying local Ollama:', redactProviderText(error.message));
+    }
+
+    try {
+      return { ...(await ai.chat(message, context)), provider: 'ollama' };
     } catch (error) {
       failures.push(`Ollama: ${redactProviderText(error.message)}`);
     }
@@ -290,13 +324,34 @@ function createApp() {
     throw unavailable;
   }
 
+  const toolRegistry = new ToolRegistry({
+    permissionManager,
+    getRuntimeStatus: () => ({
+      version: '11.0.3',
+      providers: {
+        geminiConfigured: hasGeminiCredentials(),
+        openaiConfigured: Boolean(openAiConfig().apiKey),
+        ollamaConfigured: Boolean(process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL)
+      }
+    })
+  });
+  const brain = new UnifiedBrain({
+    contextStore,
+    permissionManager,
+    toolRegistry,
+    providerRouter: hybridChat
+  });
+
   app.get('/api/health', (req, res) => {
     res.json({
-      status: 'ok', service: 'ANJANA AI', version: '10.3.0',
+      status: 'ok', service: 'ANJANA AI', version: '11.0.3',
       core: core.getStatus(),
+      brain: brain.getStatus(),
       features: {
         authentication: true, hybridAi: true,
         liveAvatar: Boolean(process.env.LIVEAVATAR_API_KEY),
+        research: Boolean(process.env.TAVILY_API_KEY),
+        heygenDirectApi: Boolean(process.env.HEYGEN_API_KEY),
         liveAvatarAvatarId: Boolean(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID),
         textToSpeech: Boolean(process.env.OPENAI_TTS_API_KEY || process.env.BACKUP_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
         liveAvatarSandbox: String(process.env.LIVEAVATAR_SANDBOX || 'false').toLowerCase() === 'true'
@@ -304,22 +359,112 @@ function createApp() {
     });
   });
 
+  app.get('/api/brain/status', (req, res) => {
+    res.json(brain.getStatus());
+  });
+
+  // Tavily research uses a server-side key; search results are returned as data,
+  // not executed as instructions or fetched as arbitrary URLs by this server.
+  app.get('/api/research/status', requireAuth, (req, res) => {
+    res.json({ configured: Boolean(process.env.TAVILY_API_KEY), provider: 'tavily' });
+  });
+
+  app.post('/api/research/search', requireAuth, chatLimiter, async (req, res) => {
+    const query = typeof req.body?.query === 'string' ? req.body.query.trim() : '';
+    if (query.length < 3 || query.length > 300) {
+      return res.status(400).json({ error: 'Search query must contain 3-300 characters.' });
+    }
+    const apiKey = String(process.env.TAVILY_API_KEY || '').trim();
+    if (!apiKey) return res.status(503).json({ error: 'TAVILY_API_KEY is not configured in Render.' });
+    try {
+      const response = await fetch(TAVILY_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS || 45000)),
+        body: JSON.stringify({ api_key: apiKey, query, topic: 'general', search_depth: 'basic',
+          max_results: 5, include_answer: false, include_raw_content: false })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = redactProviderText(data.detail || data.message || data.error || `Tavily HTTP ${response.status}`);
+        console.warn('Tavily search failed:', response.status, message);
+        return res.status(502).json({ error: 'Web research provider rejected the request.', providerStatus: response.status, diagnostic: message });
+      }
+      const results = (Array.isArray(data.results) ? data.results : []).slice(0, 5).map(item => ({
+        title: String(item.title || '').slice(0, 300),
+        url: String(item.url || '').slice(0, 1500),
+        content: String(item.content || '').slice(0, 4000),
+        score: Number.isFinite(Number(item.score)) ? Number(item.score) : null
+      }));
+      return res.json({ ok: true, provider: 'tavily', query, results });
+    } catch (error) {
+      console.warn('Tavily search unavailable:', redactProviderText(error.message));
+      return res.status(502).json({ error: 'Unable to reach the web research provider.' });
+    }
+  });
+
+  app.get('/api/brain/tools', requireAuth, (req, res) => {
+    res.json({ tools: toolRegistry.describe(), policy: permissionManager.getStatus() });
+  });
+
   app.get('/api/ai/status', async (req, res) => {
     try {
       const ollama = await ai.status();
       res.json({
-        version: '10.3.0',
+        version: '11.0.3',
         provider: process.env.AI_PROVIDER || 'hybrid',
         openaiModel: openAiConfig().model,
         geminiModel: process.env.GEMINI_MODEL || (hasLegacyGeminiConfig() ? process.env.OPENAI_MODEL : '') || 'gemini-3.8-flash',
         geminiConfigured: hasGeminiCredentials(),
         openaiConfigured: Boolean(openAiConfig().apiKey),
         ollama,
-        onlineReady: Boolean(openAiConfig().apiKey || hasGeminiCredentials())
+        credentialsConfigured: Boolean(openAiConfig().apiKey || hasGeminiCredentials()),
+        // Presence of a key is not proof that the provider accepts requests.
+        onlineReady: false,
+        connectionVerified: false
       });
     } catch (error) {
       res.status(503).json({ error: 'AI status unavailable' });
     }
+  });
+
+  app.post('/api/ai/diagnostics', requireAuth, chatLimiter, async (req, res) => {
+    const checks = {};
+    const safeCheck = async (name, configured, operation) => {
+      if (!configured) {
+        checks[name] = { configured: false, connected: false, error: 'Credential is not configured' };
+        return;
+      }
+      try {
+        const result = await operation();
+        checks[name] = { configured: true, connected: true, model: result.model || 'verified' };
+      } catch (error) {
+        checks[name] = {
+          configured: true,
+          connected: false,
+          error: redactProviderText(error.message || 'Provider request failed'),
+          status: Number(error.status) || undefined
+        };
+      }
+    };
+
+    // Deliberate user-triggered live checks; no keys or provider response bodies are returned.
+    await safeCheck('gemini', hasGeminiCredentials(), () => geminiChat('Reply with exactly: GEMINI CONNECTION OK.', 'en'));
+    await safeCheck('openai', Boolean(openAiConfig().apiKey), () => openAiChat('Reply with exactly: OPENAI CONNECTION OK.', 'en'));
+    let ollama = await ai.status();
+    if (ollama.online) {
+      try {
+        await ai.chat('Reply with exactly: OLLAMA CONNECTION OK.');
+        ollama = { ...ollama, connected: true };
+      } catch (error) {
+        ollama = { ...ollama, connected: false, error: redactProviderText(error.message) };
+      }
+    } else {
+      ollama = { ...ollama, connected: false, error: 'Ollama is not reachable from this Render service.' };
+    }
+    checks.ollama = { configured: Boolean(process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL), ...ollama };
+    const connected = Object.entries(checks).filter(([name, value]) => name !== 'ollama' && value.connected).map(([name]) => name);
+    return res.json({ ok: connected.length > 0 || checks.ollama.connected, checks, preferredOrder: ['gemini', 'openai', 'ollama'] });
   });
 
   app.post('/api/ai/test', requireAuth, chatLimiter, async (req, res) => {
@@ -410,9 +555,18 @@ function createApp() {
   app.post('/api/chat', requireAuth, chatLimiter, async (req, res) => {
     try {
       const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+      const conversationId = typeof req.body?.conversationId === 'string' ? req.body.conversationId : '';
       if (!core.validateMessage(message)) return res.status(400).json({ error: 'Invalid message' });
+      if (!/^[a-zA-Z0-9_-]{6,128}$/.test(conversationId)) {
+        return res.status(400).json({ error: 'Valid conversationId is required.' });
+      }
       const request = core.createRequest(message);
-      const result = await hybridChat(request.message, request.language);
+      const result = await brain.respond({
+        userId: req.user.id,
+        conversationId,
+        message: request.message,
+        language: request.language
+      });
       return res.json({ ...result, language: request.language });
     } catch (error) {
       console.error('AI chat error:', error.message);
@@ -422,7 +576,7 @@ function createApp() {
       return res.status(503).json({
         error: 'AI providers are unavailable.',
         diagnostic,
-        hint: 'Render Environment හි OpenAI key/base URL/model පරීක්ෂා කරන්න. පැරණි Gemini OPENAI_* configuration එකක් තිබේ නම් V10.3.0 එය හඳුනාගෙන BACKUP_OPENAI_* OpenAI key එක භාවිත කරයි.'
+        hint: 'Render Environment හි Gemini ප්‍රධාන API key/model සහ OpenAI backup key/base URL/model පරීක්ෂා කරන්න. පැරණි Gemini OPENAI_* configuration එකක් තිබේ නම් legacy compatibility ක්‍රමය තවදුරටත් පවතී.'
       });
     }
   });
