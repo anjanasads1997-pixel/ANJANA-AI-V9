@@ -1,8 +1,8 @@
-# ANJANA AI V11.1.0 — Unified AI Foundation
+# ANJANA AI V11.1.1 — Unified AI Foundation
 
 Bilingual Sinhala + English avatar-and-chat assistant for Windows and Android/PWA. V11.0 Phase 01 updates the provider priority while retaining the existing Express backend, authentication, LiveAvatar LITE integration and deployment structure.
 
-## V11.1.0 guest assistant access
+## V11.1.1 guest assistant access
 
 - Chat, AI diagnostics, OpenAI connection test, LiveAvatar session creation and TTS accept a short-lived anonymous guest identity.
 - Guest identity is held in an HttpOnly, SameSite=Lax cookie and is isolated from registered-user context.
@@ -165,9 +165,9 @@ Run `npm test` before deployment. Real OpenAI and LiveAvatar connections still r
 - Gemini request timeout now follows `AI_TIMEOUT_MS`.
 
 
-## V11.1.0 reliability notes
+## V11.1.1 reliability notes
 
-- Runtime and health versions are aligned to 11.1.0.
+- Runtime and health versions are aligned to 11.1.1.
 - `.env.example` now documents distinct Gemini, OpenAI, Ollama, LiveAvatar, TTS, Tavily and Brain encryption settings.
 - Guest assistant routes use an isolated anonymous identity; privileged research and tools remain protected.
 - Guest context is not linked to a registered account. Configure `BRAIN_ENCRYPTION_KEY` to enable encrypted persistence for stored Brain context.

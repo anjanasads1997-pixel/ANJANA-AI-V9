@@ -1,0 +1,35 @@
+ANJANA AI V11.1.1 — යාවත්කාලීන කිරීම
+
+1. ආරක්ෂාව
+- මුල් GitHub repository එක හෝ පෙර ZIP ගොනු මකා නොදමන්න.
+- මෙම සම්පූර්ණ ZIP එක වෙනම පිටපතක් ලෙස තබාගන්න.
+- දැනට තිබෙන repository එකේ වෙනස්කම් කිරීමට පෙර GitHub හි නව backup branch එකක් සාදන්න.
+- .env හෝ API keys ZIP/GitHub වෙත upload නොකරන්න.
+
+2. GitHub වෙත යාවත්කාලීන කිරීම
+- සම්පූර්ණ ZIP එක extract කරන්න.
+- එහි ANJANA-AI-V9-main ෆෝල්ඩරය තුළ ඇති ගොනු repository එකේ සමාන paths වලට යොදන්න.
+- පැරණි ගොනු මකා නොදමන්න. මෙම release එකේ අලුත්/වෙනස් කළ ගොනු පමණක් overwrite කරන්න.
+- විශේෂයෙන් src/core/brain, src/auth, public/avatar-preview.png, පැරණි chat/history ගොනු රඳවාගන්න.
+- Commit කර push කරන්න.
+
+3. Render Environment Variables
+- Render Dashboard → ඔබගේ ANJANA AI Web Service → Environment වෙත යන්න.
+- GEMINI_API_KEY දැනටමත් නිවැරදිව තිබේද පරීක්ෂා කරන්න. අලුත් key එකක් හෝ key අගයක් chat එකක share නොකරන්න.
+- GEMINI_MODEL = gemini-3.8-flash
+- GEMINI_FALLBACK_MODEL = gemini-3.8-flash
+- OPENAI_API_KEY සහ OPENAI_MODEL දැනට වැඩ කරන අගයන් ලෙසම තබන්න.
+- පැරණි OPENAI_BASE_URL එක Gemini endpoint එකක් ලෙස භාවිත කර ඇත්නම්, එම legacy routing එක ඉවත් කිරීමට පෙර Render variables සියල්ල පරීක්ෂා කරන්න.
+- Save Changes → Manual Deploy → Deploy latest commit.
+
+4. Ollama සම්බන්ධයෙන්
+- Render තුළ OLLAMA_BASE_URL=http://127.0.0.1:11434 යනු Render container එකේම localhost එකයි; ඔබගේ Android දුරකථනයේ/Windows පරිගණකයේ Ollama නොවේ.
+- Render සේවාවෙන් ළඟා විය හැකි ආරක්ෂිත private endpoint එකක් නැත්නම් cloud Ollama connection එක සාර්ථක නොවේ.
+- Offline Ollama පරීක්ෂාව local Node server එකක් ක්‍රියාත්මක කරන පරිගණකයේදී කළ යුතුය.
+
+5. තහවුරු කිරීම
+- Deploy අවසන් වූ පසු /api/health විවෘත කර version 11.1.1 බව බලන්න.
+- AI Engine පරීක්ෂණයෙන් Gemini සහ OpenAI status පරීක්ෂා කරන්න.
+- Browser cache එක පැරණි UI එක පෙන්වන්නේ නම් hard refresh කරන්න.
+
+සටහන: මෙම release එකේ automated tests 64/64 සමත්ය. සැබෑ Render credentials, Gemini/OpenAI API, LiveAvatar සහ Android device end-to-end පරීක්ෂාව deployment පසු සිදු කළ යුතුය.
