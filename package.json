@@ -1,8 +1,8 @@
 {
   "name": "anjana-ai-v11",
-  "version": "11.0.3",
+  "version": "11.0.5",
   "private": true,
-  "description": "ANJANA AI full-screen live-avatar-first bilingual hybrid assistant",
+  "description": "ANJANA AI guest-first voice conversation with live avatar",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {

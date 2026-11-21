@@ -1,0 +1,14 @@
+ANJANA AI V11.0.5 PATCH – SINHALA INSTRUCTIONS
+
+මෙම ZIP එකේ ඇති ගොනු GitHub repository එකේ එකම relative path වලට replace කරන්න.
+උදාහරණ:
+src/app.js -> repository/src/app.js
+public/app-v10.js -> repository/public/app-v10.js
+
+ගොනු වෙනත් folder එකකට ගෙන නොයන්න. src/core/brain folder එක මකා නොදමන්න.
+Render Environment Variables මකා හෝ වෙනස් නොකරන්න.
+Commit කළ පසු Render හි Deploy latest commit කරන්න.
+
+මෙම සංස්කරණයේ සාමාන්‍ය Chat, AI test, LiveAvatar session සහ TTS සඳහා login අවශ්‍ය නොවේ.
+Microphone සහ LiveAvatar එකම 'කතාබහ ආරම්භ කරන්න' බොත්තමෙන් ආරම්භ වේ.
+Browser ආරක්ෂක නීති නිසා පළමු වරට එම බොත්තම ඔබා microphone permission ලබාදිය යුතුය.
