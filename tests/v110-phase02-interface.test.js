@@ -19,7 +19,9 @@ test('legacy panels remain in DOM for runtime compatibility but are hidden', () 
 });
 test('account login is available through a compact dialog', () => {
   for (const id of ['accountButton','accountDialog','accountContent','closeAccount']) assert.ok(html.includes(`id="${id}"`));
-  assert.ok(html.includes('target.appendChild(panel)'));
+  assert.ok(js.includes('target.appendChild(panel)'));
+  assert.ok(html.includes('app-v10.js?v=11.0.5'));
+  assert.ok(!/<script>/.test(html), 'no inline scripts blocked by strict CSP');
 });
 test('chat supports new conversations and selectable history', () => {
   for (const id of ['newChat','historyToggle','historyPanel','historyList']) assert.ok(html.includes(`id="${id}"`));
