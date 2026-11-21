@@ -21,3 +21,9 @@ test('V10.4 reference-style full-screen avatar and chat layout is present',()=>{
 test('existing account, offline engine, and AI controls remain available',()=>{
  for(const id of ['authPanel','localPanel','hybridTab','liveTab','toolsPanel','voiceIn','documentFile']) assert.ok(html.includes('id="'+id+'"'),id+' preserved');
 });
+
+test('V11 starts a clean chat-history namespace without deleting V10 history',()=>{
+ assert.ok(js.includes("const STORE='anjana_ai_v11_history_v1'"));
+ assert.ok(!js.includes("const STORE='anjana_ai_full_history_v2'"));
+ assert.ok(html.includes('app-v10.js?v=11.0.3'));
+});

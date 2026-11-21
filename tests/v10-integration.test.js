@@ -10,9 +10,9 @@ test('V10 frontend uses the existing authenticated chat API', () => {
   const html = read('public/index.html');
   const js = read('public/app-v10.js');
   assert.ok(html.includes('value="/api/chat"'));
-  assert.ok(html.includes('app-v10.js?v=10.4.0')); 
+  assert.ok(html.includes('app-v10.js?v=11.0.3')); 
   assert.ok(js.includes("credentials:'same-origin'"));
-  assert.ok(js.includes('JSON.stringify({message:q})'));
+  assert.ok(js.includes('JSON.stringify({message:q,conversationId:activeSessionId})'));
 });
 
 test('V10 frontend exposes the existing session authentication flow', () => {
@@ -22,26 +22,29 @@ test('V10 frontend exposes the existing session authentication flow', () => {
   for (const route of ['/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/me']) assert.ok(js.includes(route));
 });
 
-test('V10.3.0 hybrid provider order is OpenAI, Gemini, then Ollama', () => {
+test('V11.0 hybrid provider order is Gemini, OpenAI backup, then Ollama', () => {
   const app = read('src/app.js');
   assert.ok(app.includes('async function openAiChat'));
   assert.ok(app.includes('async function geminiChat'));
   assert.ok(app.includes('const failures = []'));
-  assert.ok(app.indexOf('return await openAiChat(message, language);') < app.indexOf('return await geminiChat(message, language);'));
-  assert.ok(app.indexOf('return await openAiChat(message, language);') < app.indexOf('return await geminiChat(message, language);'));
+  assert.ok(app.indexOf('return await geminiChat(message, language, context);') < app.indexOf('return await openAiChat(message, language, context);'));
+  assert.ok(app.includes("process.env.AI_PROVIDER || process.env.AI_MODE || 'hybrid'"));
   assert.ok(app.includes('process.env.OPENAI_API_KEY || process.env.BACKUP_OPENAI_API_KEY'));
   assert.ok(app.includes("provider: 'ollama'"));
 });
 
-test('health endpoint reports V10.3.0 and provider readiness without exposing secrets', () => {
+test('health endpoint reports V11.0.3 and provider readiness without exposing secrets', () => {
   const app = read('src/app.js');
-  assert.ok(app.includes("version: '10.3.0'"));
+  assert.ok(app.includes("version: '11.0.3'"));
   assert.ok(app.includes('openaiConfigured: Boolean(openAiConfig().apiKey)'));
 });
 
 test('environment example keeps OpenAI, Gemini and Ollama configuration separate', () => {
   const env = read('.env.example');
+  assert.ok(env.includes('AI_PROVIDER=hybrid'));
+  assert.ok(env.includes('GEMINI_API_KEY='));
   assert.ok(env.includes('OPENAI_BASE_URL=https://api.openai.com/v1'));
+  assert.ok(env.includes('OLLAMA_MODEL=qwen2.5:3b'));
   assert.ok(env.includes('GEMINI_API_KEY='));
   assert.ok(env.includes('OLLAMA_BASE_URL='));
 });
@@ -52,8 +55,8 @@ test('V10.3.0 allows WebAssembly and cache-busts the mobile client', () => {
   const html = read('public/index.html');
   const sw = read('public/sw.js');
   assert.ok(app.includes("'wasm-unsafe-eval'"));
-  assert.ok(html.includes('app-v10.js?v=10.4.0'));
-  assert.ok(sw.includes('anjana-ai-v10.4.0-shell-v1'));
+  assert.ok(html.includes('app-v10.js?v=11.0.3'));
+  assert.ok(sw.includes('anjana-ai-v11.0.3-shell-v1'));
 });
 
 test('V10.3.0 defaults LiveAvatar to live mode and explains sandbox rejection', () => {
@@ -71,7 +74,7 @@ test('V10.3.0 exposes a protected direct OpenAI connectivity test', () => {
   const html = read('public/index.html');
   assert.ok(app.includes("app.post('/api/ai/test', requireAuth"));
   assert.ok(app.includes('ANJANA AI OpenAI connection OK.'));
-  assert.ok(js.includes("fetch('/api/ai/test'"));
+  assert.ok(js.includes("fetch('/api/ai/diagnostics'"));
   assert.ok(js.includes("addEventListener('click',testOpenAIConnection)"));
   assert.ok(html.includes('id="testOpenAI"'));
 });
@@ -118,12 +121,12 @@ test('V10.3.0 reports all hybrid provider failures instead of a misleading local
 
 test('V10.3.0 does not label a configured API key as a verified live connection', () => {
   const js = read('public/app-v10.js');
-  assert.ok(js.includes('API key තිබීම පමණක් සාර්ථක AI request එකක් බව තහවුරු නොකරයි'));
+  assert.ok(js.includes('API Keys තිබීම පමණක් සම්බන්ධතාව තහවුරු නොකරයි'));
   assert.ok(js.includes('OpenAI key සකසා ඇත'));
 });
 
 
-test('V10.3.0 detects legacy Render Gemini endpoint and selects BACKUP OpenAI credentials', () => {
+test('V11.0 preserves legacy Render Gemini endpoint compatibility and BACKUP OpenAI credentials', () => {
   const app = read('src/app.js');
   assert.ok(app.includes('function hasLegacyGeminiConfig()'));
   assert.ok(app.includes("process.env.BACKUP_OPENAI_API_KEY || ''"));
@@ -136,4 +139,10 @@ test('V10.3.0 health status uses resolved legacy-compatible provider settings', 
   const app = read('src/app.js');
   assert.ok(app.includes('openaiModel: openAiConfig().model'));
   assert.ok(app.includes('geminiConfigured: hasGeminiCredentials()'));
+});
+
+test('V11 frontend reads the Ollama status field returned by the backend', () => {
+  const js = read('public/app-v10.js');
+  assert.ok(js.includes('data.ollama?.online'));
+  assert.ok(!js.includes('data.ollama?.available'));
 });
