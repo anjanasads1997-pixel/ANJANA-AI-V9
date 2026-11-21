@@ -297,29 +297,50 @@ function createApp() {
     const legacyGemini = hasLegacyGeminiConfig();
     const apiKey = process.env.GEMINI_API_KEY || (legacyGemini ? process.env.OPENAI_API_KEY : '');
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-    const model = process.env.GEMINI_MODEL || (legacyGemini ? process.env.OPENAI_MODEL : '') || 'gemini-3.8-flash';
+    const configuredModel = String(process.env.GEMINI_MODEL || (legacyGemini ? process.env.OPENAI_MODEL : '') || 'gemini-3.8-flash').trim();
+    const fallbackModel = String(process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash').trim();
+    const models = [...new Set([configuredModel, fallbackModel].filter(Boolean))];
     const system = language === 'si'
       ? 'ඔබ ANJANA AI ය. පැහැදිලි, නිවැරදි, ප්‍රයෝජනවත් සිංහලෙන් පිළිතුරු දෙන්න.'
       : 'You are ANJANA AI. Give clear, accurate and helpful English answers.';
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS || 45000)),
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [
-          ...context.slice(-12).filter(item => ['user', 'assistant'].includes(item.role)).map(item => ({
-            role: item.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: String(item.content).slice(0, 8000) }]
-          })),
-          { role: 'user', parts: [{ text: message }] }
-        ],
-        generationConfig: { temperature: 0.7 }
-      })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error?.message || `Gemini request failed (${response.status})`);
-    const reply = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
-    if (!reply) throw new Error('Gemini returned an empty response');
-    return { reply, model, provider: 'gemini' };
+    const requestBody = {
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [
+        ...context.slice(-12).filter(item => ['user', 'assistant'].includes(item.role)).map(item => ({
+          role: item.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: String(item.content).slice(0, 8000) }]
+        })),
+        { role: 'user', parts: [{ text: message }] }
+      ],
+      generationConfig: { temperature: 0.7 }
+    };
+
+    let lastError;
+    for (let index = 0; index < models.length; index += 1) {
+      const model = models[index];
+      let response;
+      try {
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS || 45000)),
+          body: JSON.stringify(requestBody)
+        });
+      } catch (error) {
+        throw new Error(`Gemini network error: ${redactProviderText(error.message)}`);
+      }
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        const reply = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+        if (!reply) throw new Error('Gemini returned an empty response');
+        return { reply, model, provider: 'gemini' };
+      }
+      const providerMessage = String(data.error?.message || `Gemini request failed (${response.status})`);
+      lastError = new Error(providerMessage);
+      const modelUnavailable = response.status === 404 || /model[^.]{0,100}(not found|not available|does not exist|unsupported)|not found[^.]{0,100}model/i.test(providerMessage);
+      if (!modelUnavailable || index === models.length - 1) break;
+      console.warn(`Gemini model ${model} unavailable; retrying with ${models[index + 1]}.`);
+    }
+    throw lastError || new Error('Gemini request failed');
   }
 
   async function hybridChat(message, language, context = []) {
@@ -372,7 +393,7 @@ function createApp() {
   const toolRegistry = new ToolRegistry({
     permissionManager,
     getRuntimeStatus: () => ({
-      version: '11.1.0',
+      version: '11.1.1',
       providers: {
         geminiConfigured: hasGeminiCredentials(),
         openaiConfigured: Boolean(openAiConfig().apiKey),
@@ -389,7 +410,7 @@ function createApp() {
 
   app.get('/api/health', (req, res) => {
     res.json({
-      status: 'ok', service: 'ANJANA AI', version: '11.1.0',
+      status: 'ok', service: 'ANJANA AI', version: '11.1.1',
       core: core.getStatus(),
       brain: brain.getStatus(),
       features: {
@@ -456,7 +477,7 @@ function createApp() {
     try {
       const ollama = await ai.status();
       res.json({
-        version: '11.1.0',
+        version: '11.1.1',
         provider: process.env.AI_PROVIDER || 'hybrid',
         openaiModel: openAiConfig().model,
         geminiModel: process.env.GEMINI_MODEL || (hasLegacyGeminiConfig() ? process.env.OPENAI_MODEL : '') || 'gemini-3.8-flash',

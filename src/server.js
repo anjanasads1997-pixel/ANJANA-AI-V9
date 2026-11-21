@@ -12,7 +12,7 @@ const app = createApp();
 
 const server = app.listen(PORT, HOST, () => {
   console.log('================================');
-  console.log('ANJANA AI V11.1.0 SERVER');
+  console.log('ANJANA AI V11.1.1 SERVER');
   console.log(`Server: http://localhost:${PORT}`);
   console.log(`Health: http://localhost:${PORT}/api/health`);
   console.log('================================');
