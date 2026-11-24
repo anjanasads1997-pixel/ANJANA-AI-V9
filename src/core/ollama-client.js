@@ -8,7 +8,7 @@ class OllamaClient {
       'http://127.0.0.1:11434'
     ).replace(/\/+$/, '');
 
-    this.model = options.model || 'qwen2.5:3b';
+    this.model = options.model || 'qwen2.5:1.5b';
     this.timeoutMs = options.timeoutMs || 120000;
   }
 
@@ -40,7 +40,7 @@ class OllamaClient {
     }
   }
 
-  async chat(message, context = []) {
+  async chat(message) {
     if (typeof message !== 'string' || !message.trim()) {
       throw new Error('A message is required');
     }
@@ -56,11 +56,10 @@ class OllamaClient {
         body: JSON.stringify({
           model: this.model,
           messages: [
-            ...context.slice(-12).filter(item => ['user', 'assistant'].includes(item.role)).map(item => ({
-              role: item.role,
-              content: String(item.content).slice(0, 8000)
-            })),
-            { role: 'user', content: message.trim() }
+            {
+              role: 'user',
+              content: message.trim()
+            }
           ],
           stream: false
         })
