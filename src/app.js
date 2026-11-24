@@ -93,6 +93,34 @@ function createApp() {
     }
   }
 
+  async function geminiChat(message, language) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
+    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const systemInstruction = language === 'si'
+      ? 'ඔබ ANJANA AI ය. පැහැදිලි, ප්‍රයෝජනවත් ශ්‍රී ලාංකික සිංහලෙන් පිළිතුරු දෙන්න. අවශ්‍ය විට English technical terms භාවිත කරන්න.'
+      : 'You are ANJANA AI. Give clear, useful answers in English.';
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(45000),
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: 'user', parts: [{ text: message }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+        })
+      }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error?.message || `Gemini request failed (${response.status})`);
+    const reply = (data.candidates?.[0]?.content?.parts || [])
+      .map(part => part.text || '').join('').trim();
+    if (!reply) throw new Error('Gemini returned no text. The response may have been blocked.');
+    return { reply, model, provider: 'gemini' };
+  }
+
   async function openAiChat(message, language) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
@@ -119,24 +147,52 @@ function createApp() {
   }
 
   async function hybridChat(message, language) {
-    const provider = String(process.env.AI_PROVIDER || 'hybrid').toLowerCase();
-    if (provider === 'openai') return openAiChat(message, language);
-    if (provider === 'ollama' || provider === 'local') {
-      return { ...(await ai.chat(message)), provider: 'ollama' };
+    const failures = [];
+    const providerOrder = String(process.env.AI_PROVIDER_ORDER || 'gemini,openai,ollama')
+      .split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
+
+    for (const provider of providerOrder) {
+      try {
+        if (provider === 'gemini' && process.env.GEMINI_API_KEY) {
+          return await geminiChat(message, language);
+        }
+        if (provider === 'openai' && process.env.OPENAI_API_KEY) {
+          return await openAiChat(message, language);
+        }
+        if (provider === 'ollama') {
+          const localStatus = await ai.status();
+          if (localStatus.online) {
+            const result = await ai.chat(message);
+            if (result.reply) return { ...result, provider: 'ollama' };
+            throw new Error('Ollama returned an empty response');
+          }
+        }
+      } catch (error) {
+        failures.push(`${provider}: ${error.message}`);
+        console.warn(`${provider} unavailable; trying next AI provider:`, error.message);
+      }
     }
-    if (process.env.OPENAI_API_KEY) {
-      try { return await openAiChat(message, language); }
-      catch (error) { console.warn('OpenAI provider unavailable; trying local AI:', error.message); }
+
+    const configured = [
+      process.env.GEMINI_API_KEY && 'Gemini',
+      process.env.OPENAI_API_KEY && 'OpenAI'
+    ].filter(Boolean);
+    const localStatus = await ai.status();
+    if (localStatus.online) configured.push('Ollama');
+    if (!configured.length) {
+      throw new Error('No AI provider is configured. Add GEMINI_API_KEY (primary), OPENAI_API_KEY (backup), or connect a reachable Ollama server.');
     }
-    return { ...(await ai.chat(message)), provider: 'ollama' };
+    throw new Error(`Configured AI providers could not answer. ${failures.join(' | ') || 'Check provider keys, model access, quota and Ollama network access.'}`);
   }
 
   app.get('/api/health', (req, res) => {
     res.json({
-      status: 'ok', service: 'ANJANA AI', version: '9.2.0',
+      status: 'ok', service: 'ANJANA AI', version: '9.3.0',
       core: core.getStatus(),
       features: {
-        authentication: true, hybridAi: true,
+        authentication: false, hybridAi: true,
+        gemini: Boolean(process.env.GEMINI_API_KEY),
+        openai: Boolean(process.env.OPENAI_API_KEY),
         liveAvatar: Boolean(process.env.LIVEAVATAR_API_KEY),
         textToSpeech: Boolean(process.env.OPENAI_API_KEY)
       }
@@ -144,20 +200,26 @@ function createApp() {
   });
 
   app.get('/api/ai/status', async (req, res) => {
-    try {
-      const ollama = await ai.status();
-      res.json({
-        provider: process.env.AI_PROVIDER || 'hybrid',
-        openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
-        ollama,
-        onlineReady: Boolean(process.env.OPENAI_API_KEY)
-      });
-    } catch (error) {
-      res.status(503).json({ error: 'AI status unavailable' });
-    }
+    const ollama = await ai.status();
+    const providers = {
+      gemini: { configured: Boolean(process.env.GEMINI_API_KEY), model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' },
+      openai: { configured: Boolean(process.env.OPENAI_API_KEY), model: process.env.OPENAI_MODEL || 'gpt-4o-mini' },
+      ollama: { configured: ollama.online, model: ollama.model, online: ollama.online }
+    };
+    const available = Object.entries(providers).filter(([, value]) => value.configured).map(([name]) => name);
+    res.json({
+      provider: process.env.AI_PROVIDER || 'hybrid',
+      providerOrder: process.env.AI_PROVIDER_ORDER || 'gemini,openai,ollama',
+      providers,
+      available,
+      onlineReady: available.length > 0,
+      geminiConfigured: providers.gemini.configured,
+      openaiConfigured: providers.openai.configured,
+      ollama
+    });
   });
 
-  app.get('/api/avatar/status', requireAuth, (req, res) => {
+  app.get('/api/avatar/status', (req, res) => {
     res.json({
       configured: Boolean(process.env.LIVEAVATAR_API_KEY),
       avatarIdConfigured: Boolean(process.env.LIVEAVATAR_AVATAR_ID || process.env.ANJANA_LIVEAVATAR_ID),
@@ -166,7 +228,7 @@ function createApp() {
     });
   });
 
-  app.post('/api/avatar/session', requireAuth, avatarLimiter, async (req, res) => {
+  app.post('/api/avatar/session', avatarLimiter, async (req, res) => {
     const apiKey = process.env.LIVEAVATAR_API_KEY;
     const avatarId = process.env.LIVEAVATAR_AVATAR_ID ||
       process.env.ANJANA_LIVEAVATAR_ID || '245c5ef6-fea0-4095-9894-79ff8f3947be';
@@ -197,7 +259,7 @@ function createApp() {
     }
   });
 
-  app.post('/api/chat', requireAuth, chatLimiter, async (req, res) => {
+  app.post('/api/chat', chatLimiter, async (req, res) => {
     try {
       const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
       if (!core.validateMessage(message)) return res.status(400).json({ error: 'Invalid message' });
@@ -206,11 +268,11 @@ function createApp() {
       return res.json({ ...result, language: request.language });
     } catch (error) {
       console.error('AI chat error:', error.message);
-      return res.status(503).json({ error: 'AI providers are unavailable. Check the OpenAI key or local Ollama connection.' });
+      return res.status(503).json({ error: error.message || 'AI providers are unavailable. Check server provider configuration.' });
     }
   });
 
-  app.post('/api/tts', requireAuth, chatLimiter, async (req, res) => {
+  app.post('/api/tts', chatLimiter, async (req, res) => {
     const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
     if (!text || text.length > 3500) return res.status(400).json({ error: 'Text must contain 1-3500 characters.' });
     const apiKey = process.env.OPENAI_API_KEY;
