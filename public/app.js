@@ -10,6 +10,9 @@
     user: sessionStorage.getItem("anjana_user") || "",
     room: null,
     sessionToken: null,
+    avatarSession: null,
+    avatarSdk: null,
+    avatarReady: false,
     recognition: null,
     voiceEnabled: true,
     busy: false
@@ -143,17 +146,56 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  function speak(text) {
-    if (!state.voiceEnabled || !("speechSynthesis" in window)) return;
+  async function loadAvatarSdk() {
+    if (state.avatarSdk) return state.avatarSdk;
+    const sdk = await import("https://esm.sh/@heygen/liveavatar-web-sdk@0.0.20?bundle");
+    if (!sdk.LiveAvatarSession || !sdk.SessionEvent) {
+      throw new Error("LiveAvatar SDK module did not load correctly.");
+    }
+    state.avatarSdk = sdk;
+    return sdk;
+  }
+
+  function base64ToBinaryString(base64) {
+    return atob(base64);
+  }
+
+  async function speak(text) {
+    if (!state.voiceEnabled) return;
+    const cleanText = String(text).slice(0, 3500);
+
+    if (state.avatarSession && state.avatarReady) {
+      try {
+        const audio = await request("/api/tts", {
+          method: "POST",
+          body: JSON.stringify({
+            text: cleanText,
+            voice: $("voiceSelect")?.value || "coral"
+          })
+        });
+        if (!audio.audio || audio.sample_rate !== 24000 || audio.format !== "pcm_s16le") {
+          throw new Error("TTS audio must be PCM 16-bit, 24 kHz mono for LiveAvatar.");
+        }
+        state.avatarSession.repeatAudio(base64ToBinaryString(audio.audio));
+        avatarStatus("Avatar speaking · Real-time lip sync active", true);
+        return;
+      } catch (error) {
+        console.warn("LiveAvatar speech path unavailable:", error);
+        avatarStatus(`Lip-sync voice unavailable: ${error.message}`);
+        return;
+      }
+    }
+
+    if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(text).slice(0, 4000));
-    u.lang = /[\u0D80-\u0DFF]/.test(text) ? "si-LK" : "en-US";
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = /[\u0D80-\u0DFF]/.test(cleanText) ? "si-LK" : "en-US";
     const wanted = $("voiceSelect")?.value;
-    const voices = speechSynthesis.getVoices();
+    const voices = window.speechSynthesis.getVoices();
     const match = voices.find(v => wanted && v.name.toLowerCase().includes(wanted)) ||
-      voices.find(v => v.lang.toLowerCase().startsWith(u.lang.slice(0, 2)));
-    if (match) u.voice = match;
-    speechSynthesis.speak(u);
+      voices.find(v => v.lang.toLowerCase().startsWith(utterance.lang.slice(0, 2)));
+    if (match) utterance.voice = match;
+    window.speechSynthesis.speak(utterance);
   }
 
   async function sendMessage() {
@@ -213,26 +255,66 @@
   async function startAvatar() {
     const start = $("startAvatarBtn"), stop = $("stopAvatarBtn");
     if (!state.token) return avatarStatus("පළමුව Login වන්න.");
-    if (state.sessionToken) return avatarStatus("LiveAvatar session එක දැනටමත් ආරම්භ කර ඇත.");
+    if (state.avatarSession) return avatarStatus("LiveAvatar session එක දැනටමත් ආරම්භ කර ඇත.", state.avatarReady);
     if (start) start.disabled = true;
-    avatarStatus("LiveAvatar session token එක ලබාගනිමින්…");
+    avatarStatus("LiveAvatar SDK සූදානම් කරමින්…");
 
     try {
-      const data = await request("/api/avatar/session", {
-        method: "POST",
-        body: JSON.stringify({})
-      });
-      if (!data.session_token || !data.session_id) {
-        throw new Error("Backend වෙතින් LiveAvatar session තොරතුරු සම්පූර්ණ නැත.");
-      }
-      state.sessionToken = data.session_token;
-      if (stop) stop.disabled = false;
+      const [sdk, data] = await Promise.all([
+        loadAvatarSdk(),
+        request("/api/avatar/session", { method: "POST", body: JSON.stringify({}) })
+      ]);
+      if (!data.session_token) throw new Error("LiveAvatar session token එක ලැබුණේ නැත.");
 
-      // Current backend creates a LITE session token only. It does not yet
-      // return LiveKit URL/client token or implement the remote stop endpoint.
-      avatarStatus("LiveAvatar session token එක ලැබුණා. වීඩියෝ stream bridge එක Backend එකට තවම එකතු කර නැහැ.");
-      setText("qualityLabel", "Session token ready");
+      const session = new sdk.LiveAvatarSession(data.session_token, {
+        autoKeepAlive: true,
+        voiceChat: { defaultMuted: true }
+      });
+      state.avatarSession = session;
+      state.sessionToken = data.session_token;
+      state.avatarReady = false;
+
+      session.on(sdk.SessionEvent.SESSION_STREAM_READY, () => {
+        const video = $("avatarVideo");
+        if (!video) return;
+        try {
+          session.attach(video);
+          video.muted = false;
+          video.autoplay = true;
+          video.playsInline = true;
+          video.classList.remove("hidden");
+          show($("avatarPlaceholder"), false);
+          video.play().catch(() => {
+            avatarStatus("Avatar stream සූදානම්. Video එක play කිරීමට තිරය ස්පර්ශ කරන්න.", true);
+          });
+          state.avatarReady = true;
+          setText("qualityLabel", "Live stream connected");
+          avatarStatus("Live Avatar connected · Lip sync ready", true);
+        } catch (error) {
+          avatarStatus(`Avatar video attach දෝෂය: ${error.message}`);
+        }
+      });
+
+      session.on(sdk.SessionEvent.SESSION_DISCONNECTED, () => {
+        state.avatarReady = false;
+        state.avatarSession = null;
+        state.sessionToken = null;
+        if (start) start.disabled = false;
+        if (stop) stop.disabled = true;
+        const video = $("avatarVideo");
+        if (video) video.classList.add("hidden");
+        show($("avatarPlaceholder"), true);
+        avatarStatus("LiveAvatar session disconnected.");
+      });
+
+      await session.start();
+      if (stop) stop.disabled = false;
+      avatarStatus("LiveAvatar stream එක සම්බන්ධ වෙමින්…");
+      setText("qualityLabel", "Connecting video/audio");
     } catch (e) {
+      state.avatarSession = null;
+      state.sessionToken = null;
+      state.avatarReady = false;
       if (start) start.disabled = false;
       if (stop) stop.disabled = true;
       avatarStatus(`LiveAvatar ආරම්භ කළ නොහැක: ${e.message}`);
@@ -241,16 +323,25 @@
 
   async function stopAvatar() {
     const start = $("startAvatarBtn"), stop = $("stopAvatarBtn");
+    const session = state.avatarSession;
+    state.avatarSession = null;
     state.sessionToken = null;
+    state.avatarReady = false;
+    try {
+      if (session && typeof session.stop === "function") await session.stop();
+    } catch (error) {
+      console.warn("LiveAvatar stop request failed:", error);
+    }
     const video = $("avatarVideo");
     if (video) {
       video.pause();
       video.srcObject = null;
       video.classList.add("hidden");
     }
+    show($("avatarPlaceholder"), true);
     if (start) start.disabled = false;
     if (stop) stop.disabled = true;
-    avatarStatus("Local LiveAvatar session state එක නවතා ඇත.");
+    avatarStatus("LiveAvatar session එක නවතා ඇත.");
   }
 
   function startMic() {
@@ -287,6 +378,9 @@
       state.voiceEnabled = !state.voiceEnabled;
       setText("voiceToggle", state.voiceEnabled ? "🔊 Voice: On" : "🔇 Voice: Off");
       if (!state.voiceEnabled && "speechSynthesis" in window) speechSynthesis.cancel();
+      if (!state.voiceEnabled && state.avatarSession && state.avatarReady) {
+        try { state.avatarSession.interrupt(); } catch (error) { console.warn("Avatar interrupt failed:", error); }
+      }
     });
     setAuthenticated(false);
     healthCheck();
@@ -304,6 +398,7 @@
   window.addEventListener("pagehide", () => {
     try { state.recognition?.stop(); } catch {}
     try { state.room?.disconnect(); } catch {}
+    try { state.avatarSession?.stop(); } catch {}
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   });
 })();

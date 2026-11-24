@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'anjana-ai-v11.1.1-shell-v1';
-const FILES = ['/', '/index.html', '/app-v10.js', '/manifest.webmanifest'];
+const CACHE_NAME = 'anjana-ai-v9-shell-v2';
+const FILES = ['/', '/index.html', '/app.bundle.js', '/manifest.webmanifest'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(FILES)));
   self.skipWaiting();
