@@ -1,0 +1,50 @@
+ANJANA AI — TARGETED FIX PATCH
+==============================
+
+This archive contains ONLY the files that need replacing. All other project files
+(including existing AI engine modules, authentication/database files, avatar assets,
+Android configuration and documentation) are intentionally left untouched.
+
+Replace files at the same relative paths in your existing repository:
+
+1. src/app.js
+2. public/app.js
+3. public/index.html
+4. public/sw.js
+5. .env.example
+
+AI routing added:
+- Gemini is tried first (GEMINI_API_KEY).
+- OpenAI is tried next (OPENAI_API_KEY).
+- Ollama is tried last only if reachable from the Node.js server.
+- A provider failure falls through to the next configured provider.
+
+Login removal:
+- The login/register screen is removed from the user interface.
+- Chat, TTS and LiveAvatar session endpoints no longer require a login cookie.
+- Existing auth/database source files and auth routes are retained and not deleted.
+
+RENDER ENVIRONMENT VARIABLES TO SET
+-----------------------------------
+GEMINI_API_KEY = your Google AI Studio API key
+GEMINI_MODEL = gemini-2.5-flash
+OPENAI_API_KEY = your OpenAI API key (backup model and TTS)
+OPENAI_MODEL = gpt-4o-mini
+AI_PROVIDER_ORDER = gemini,openai,ollama
+
+For real LiveAvatar lip-sync, also set:
+LIVEAVATAR_API_KEY
+LIVEAVATAR_AVATAR_ID
+
+Important:
+- This patch wires provider routing; it cannot create API keys or verify that your
+  provider accounts have quota/access. Set the keys in Render -> Environment.
+- Ollama at 127.0.0.1 means the same machine/container as the backend. A Render
+  server cannot reach Ollama running only on your Android phone or home PC.
+- Do not put API keys in public/app.js, index.html, GitHub, screenshots, or chat.
+- After replacing the five files, commit/push and deploy the existing Render service.
+- Hard-refresh the phone browser or clear the site's cached data if old UI remains.
+
+Validation performed:
+- Node syntax checks passed for src/app.js, public/app.js and public/sw.js.
+- Existing automated tests: 3 passed, 0 failed.
