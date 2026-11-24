@@ -6,8 +6,8 @@
 
   const $ = (id) => document.getElementById(id);
   const state = {
-    token: sessionStorage.getItem("anjana_token") || "",
-    user: sessionStorage.getItem("anjana_user") || "",
+    token: "public",
+    user: "",
     room: null,
     sessionToken: null,
     avatarSession: null,
@@ -44,10 +44,9 @@
     el.style.color = error ? "#ff8294" : "#9fe9ff";
   }
 
-  function setAuthenticated(yes) {
-    show($("authScreen"), !yes);
-    show($("appScreen"), yes);
-    setText("authState", yes ? `Signed in${state.user ? ` · ${state.user}` : ""}` : "Signed out");
+  function setAuthenticated() {
+    show($("authScreen"), false);
+    show($("appScreen"), true);
   }
 
   async function healthCheck() {
@@ -55,8 +54,10 @@
       const h = await request("/api/health");
       let aiInfo = {};
       try { aiInfo = await request("/api/ai/status"); } catch {}
-      const aiReady = Boolean(aiInfo.openaiConfigured || aiInfo.ollama?.available || aiInfo.onlineReady);
-      setText("providerState", aiInfo.provider || (aiReady ? "Configured" : "Backend online; AI provider check required"));
+      const aiReady = Boolean(aiInfo.onlineReady);
+      const order = (aiInfo.providerOrder || "gemini,openai,ollama").split(",").map(x => x.trim()).join(" → ");
+      const available = (aiInfo.available || []).join(", ");
+      setText("providerState", available ? `${available} ready · ${order}` : "No AI model configured · add server API keys");
       setText("liveState", h.features?.liveAvatar ? "Configured" : "Backend configuration required");
       setText("ttsState", ("speechSynthesis" in window) ? "Browser voice available" : "Voice unavailable");
       setText("aiStatus", aiReady ? "AI service online" : "Backend online");
@@ -202,7 +203,6 @@
     const input = $("messageInput");
     const text = input?.value.trim();
     if (!text || state.busy) return;
-    if (!state.token) return notice("chatNotice", "පළමුව Login වන්න.", true);
     state.busy = true;
     if ($("sendBtn")) $("sendBtn").disabled = true;
     appendMessage("user", text);
@@ -254,7 +254,6 @@
 
   async function startAvatar() {
     const start = $("startAvatarBtn"), stop = $("stopAvatarBtn");
-    if (!state.token) return avatarStatus("පළමුව Login වන්න.");
     if (state.avatarSession) return avatarStatus("LiveAvatar session එක දැනටමත් ආරම්භ කර ඇත.", state.avatarReady);
     if (start) start.disabled = true;
     avatarStatus("LiveAvatar SDK සූදානම් කරමින්…");
@@ -364,9 +363,6 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
-    $("loginBtn")?.addEventListener("click", () => authenticate("login"));
-    $("registerBtn")?.addEventListener("click", () => authenticate("register"));
-    $("logoutBtn")?.addEventListener("click", logout);
     $("sendBtn")?.addEventListener("click", sendMessage);
     $("messageInput")?.addEventListener("keydown", e => {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -382,17 +378,8 @@
         try { state.avatarSession.interrupt(); } catch (error) { console.warn("Avatar interrupt failed:", error); }
       }
     });
-    setAuthenticated(false);
+    setAuthenticated();
     healthCheck();
-    request("/api/auth/me").then(data => {
-      state.user = data.user?.username || data.username || "";
-      state.token = "cookie-session";
-      setAuthenticated(true);
-    }).catch(() => {
-      state.token = "";
-      state.user = "";
-      setAuthenticated(false);
-    });
   });
 
   window.addEventListener("pagehide", () => {

@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#06152b">
-  <meta name="description" content="ANJANA AI V9.2 — Sinhala and English Hybrid AI with LiveAvatar">
+  <meta name="description" content="ANJANA AI V9.3 — Sinhala and English Hybrid AI with LiveAvatar">
   <link rel="manifest" href="/manifest.webmanifest">
-  <title>ANJANA AI V9.2</title>
+  <title>ANJANA AI V9.3</title>
   <style>
     :root{color-scheme:dark;--bg:#031022;--panel:#071b34;--panel2:#0b2948;--line:#075b91;--text:#eff8ff;--muted:#a8c3da;--cyan:#00c8ff;--blue:#168bff;--green:#21e58a;--danger:#fb5870}
     *{box-sizing:border-box}
@@ -60,7 +60,7 @@
     .feature b{font-size:13px;color:#dff5ff}.feature div{font-size:11px;color:var(--muted);margin-top:4px}
     #notice{color:#fde68a;min-height:20px;font-size:12px;margin-top:8px}
     footer{text-align:center;color:#789bb7;font-size:11px;padding:18px}
-    .system-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    .system-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
     .top-status{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     @media(max-width:900px){.shell{padding:10px}.grid{grid-template-columns:1fr}.chatlog{height:250px}.system-grid{grid-template-columns:1fr 1fr}}
     @media(max-width:520px){.header{align-items:flex-start;flex-direction:column}.composer{grid-template-columns:1fr}.composer button{width:100%}.settings-grid,.system-grid{grid-template-columns:1fr 1fr}.avatar-stage{aspect-ratio:4/3}.badge{font-size:11px}}
@@ -79,7 +79,6 @@
       .sub{font-size:10px;line-height:1.25;max-width:210px}
       .top-status{justify-content:flex-end;gap:5px;flex-wrap:nowrap}
       .top-status .badge{display:none}
-      #logoutBtn{font-size:11px;padding:8px 9px;min-height:38px}
       .grid{display:flex;flex-direction:column;gap:9px}
       .grid>section{width:100%;min-width:0}
       .card{padding:10px;border-radius:14px}
@@ -121,25 +120,12 @@
   </style>
 </head>
 <body>
-  <div id="authScreen" class="shell auth-wrap">
-    <div class="card">
-      <div class="brand"><div class="logo">A</div><div><h1>ANJANA AI V9.2</h1><div class="sub">Sinhala · English · Hybrid AI · LiveAvatar</div></div></div>
-      <div class="field"><label for="username">Username</label><input id="username" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]{3,30}" required aria-describedby="authNotice"></div>
-      <div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" required aria-describedby="authNotice"></div>
-      <div class="auth-actions"><button id="loginBtn" class="primary" type="button">Login</button><button id="registerBtn" type="button">Create account</button></div>
-      <div id="authNotice" class="statusline" role="status"></div>
-      <p class="small">Password එක ඔබගේම උපාංගයේ පමණක් ඇතුළත් කරන්න. මෙහි කිසිවෙකුට එවන්න එපා.</p>
-    </div>
-  </div>
-
-  <div id="appScreen" class="shell hidden">
+  <div id="appScreen" class="shell">
     <header class="header">
-      <div class="brand"><div class="logo">A</div><div><h1>ANJANA AI V9.2 <span style="color:#00d5ff">HYBRID</span></h1><div class="sub">Your Personal AI Assistant | Sinhala | English | Offline + Online</div></div></div>
+      <div class="brand"><div class="logo">A</div><div><h1>ANJANA AI V9.3 <span style="color:#00d5ff">HYBRID</span></h1><div class="sub">Your Personal AI Assistant | Sinhala | English | Offline + Online</div></div></div>
       <div class="top-status">
         <span class="badge"><i id="aiDot" class="dot"></i><span id="aiStatus">AI checking</span></span>
         <span class="badge">Hybrid Mode</span>
-        <span class="badge" id="userLabel">Signed in</span>
-        <button id="logoutBtn">Logout</button>
       </div>
     </header>
 
@@ -191,14 +177,13 @@
     <section class="card" style="margin-top:15px">
       <div class="section-title"><h2>System & Integrations</h2><span class="badge">V9.2 Backend Integration</span></div>
       <div class="system-grid">
-        <div class="feature"><b>Authentication</b><div id="authState">Signed in</div></div>
         <div class="feature"><b>AI Provider</b><div id="providerState">Checking configuration…</div></div>
         <div class="feature"><b>LiveAvatar API</b><div id="liveState">Checking configuration…</div></div>
         <div class="feature"><b>Text-to-Speech</b><div id="ttsState">Checking configuration…</div></div>
       </div>
-      <p class="small">API keys are kept on the server. They are never sent to the browser. This interface does not display or store secret values.</p>
+      <p class="small">AI provider order: Gemini primary → OpenAI backup → reachable Ollama local model. API keys stay on the server and are never shown in this interface.</p>
     </section>
-    <footer>ANJANA AI V9.2 · Hybrid AI System · LiveAvatar integration · Created by Anjana Sandakelum</footer>
+    <footer>ANJANA AI V9.3 · Hybrid AI System · LiveAvatar integration · Created by Anjana Sandakelum</footer>
   </div>
   <script src="/app.js" defer></script>
 </body>
