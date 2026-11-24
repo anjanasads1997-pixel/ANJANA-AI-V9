@@ -1,15 +1,19 @@
-ANJANA AI V10.2.8 — COMPLETE PROJECT PACKAGE
+ANJANA AI V9.0.1 — UPDATE PACKAGE
 
-මෙය changed-files-only ZIP එකක් නොවේ. සම්පූර්ණ project එකේ සියලුම අවශ්‍ය ගොනු අඩංගු වේ.
+Upload/replace these exact paths in GitHub repository:
+- package.json
+- .env.example
+- src/app.js
+- public/index.html
+- public/app.js
+- public/sw.js
 
-GitHub repository root එකට extract කර upload කරන්න. පැරණි project files සමඟ merge කරන්න; GitHub හි වෙනත් නොඅදාළ files මකා නොදමන්න.
+Also included:
+- docs/UPLOAD_SI.md (Sinhala instructions; upload as docs/UPLOAD_SI.md)
 
-ඇතුළත් ප්‍රධාන කොටස්:
-- src/app.js, src/server.js
-- src/auth/*
-- src/core/*
-- public/index.html, public/app-v10.js, public/app.js, public/sw.js, public/manifest.webmanifest, public/avatar-preview.png
-- package.json, .env.example
-- tests/*, docs/*, scripts/*, android/*
+Do not delete other repository files.
+Do not upload API key values or a real .env file.
+Render Build Command remains: yarn install
+Render Start Command remains: yarn start
 
-Render Environment තුළ දැනට ඇති API secrets වෙනස් කිරීම/මකා දැමීම අවශ්‍ය නැත; මෙම release එක legacy Google endpoint + BACKUP_OPENAI_* layout එකට අනුකූලය.
+The package.json postinstall builds public/app.bundle.js automatically.
